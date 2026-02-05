@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+coverage/
+dist/
+js/app.bundle.js
+js/app.bundle.js.map
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Office/document files
+*.rtf
+*.docx
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.stryker-tmp/
+.claude/settings.local.json
+
+# Mutation testing outputs
+mutation-output*.txt
+api-mutation*.txt
+
+# Generated reports
+reports/
+playwright-report/
+test-results/
+
+# SBOM files (generated on demand)
+sbom.json
+sbom.xml
+
+# Screenshots
+*.png
+!node_modules/**/*.png

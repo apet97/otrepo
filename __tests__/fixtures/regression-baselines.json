@@ -1,0 +1,514 @@
+{
+  "description": "Known input/output pairs for calculation regression tests",
+  "version": "1.0.0",
+  "scenarios": {
+    "basic_8h_workday": {
+      "description": "Standard 8-hour workday with no overtime",
+      "input": {
+        "entries": [
+          {
+            "id": "baseline_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T09:00:00Z",
+              "end": "2025-01-15T17:00:00Z",
+              "duration": "PT8H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 8,
+        "regular": 8,
+        "overtime": 0,
+        "billableWorked": 8,
+        "nonBillableWorked": 0,
+        "amount": 400,
+        "otPremium": 0
+      }
+    },
+    "overtime_2h": {
+      "description": "10-hour workday with 2 hours overtime at 1.5x",
+      "input": {
+        "entries": [
+          {
+            "id": "baseline_2",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T09:00:00Z",
+              "end": "2025-01-15T19:00:00Z",
+              "duration": "PT10H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 10,
+        "regular": 8,
+        "overtime": 2,
+        "billableWorked": 8,
+        "billableOT": 2,
+        "amount": 550,
+        "otPremium": 50
+      }
+    },
+    "tail_attribution_split": {
+      "description": "Two entries where second entry splits between regular and OT",
+      "input": {
+        "entries": [
+          {
+            "id": "tail_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T09:00:00Z",
+              "end": "2025-01-15T15:00:00Z",
+              "duration": "PT6H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          },
+          {
+            "id": "tail_2",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T15:00:00Z",
+              "end": "2025-01-15T19:00:00Z",
+              "duration": "PT4H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 10,
+        "regular": 8,
+        "overtime": 2,
+        "entry_tail_1": { "regular": 6, "overtime": 0 },
+        "entry_tail_2": { "regular": 2, "overtime": 2 }
+      }
+    },
+    "break_not_overtime": {
+      "description": "BREAK entries count as regular but never trigger OT",
+      "input": {
+        "entries": [
+          {
+            "id": "break_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "type": "BREAK",
+            "timeInterval": {
+              "start": "2025-01-15T12:00:00Z",
+              "end": "2025-01-15T13:00:00Z",
+              "duration": "PT1H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": false
+          },
+          {
+            "id": "break_2",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T09:00:00Z",
+              "end": "2025-01-15T19:00:00Z",
+              "duration": "PT10H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 11,
+        "regular": 9,
+        "overtime": 2,
+        "breaks": 1,
+        "entry_break_1": { "regular": 1, "overtime": 0, "isBreak": true },
+        "entry_break_2": { "regular": 8, "overtime": 2, "isBreak": false }
+      }
+    },
+    "holiday_all_overtime": {
+      "description": "Work on holiday means all hours are overtime",
+      "input": {
+        "entries": [
+          {
+            "id": "holiday_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T09:00:00Z",
+              "end": "2025-01-15T17:00:00Z",
+              "duration": "PT8H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "holidays": {
+          "user1": { "2025-01-15": { "name": "Test Holiday" } }
+        },
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 8,
+        "regular": 0,
+        "overtime": 8,
+        "holidayCount": 1,
+        "amount": 600,
+        "otPremium": 200
+      }
+    },
+    "capacity_override_precedence": {
+      "description": "Per-day override takes precedence over global override and profile",
+      "input": {
+        "entries": [
+          {
+            "id": "override_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T09:00:00Z",
+              "end": "2025-01-15T17:00:00Z",
+              "duration": "PT8H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "profile": {
+          "workCapacityHours": 6
+        },
+        "overrides": {
+          "user1": {
+            "mode": "perDay",
+            "capacity": 5,
+            "perDayOverrides": {
+              "2025-01-15": { "capacity": 4 }
+            }
+          }
+        },
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 8,
+        "regular": 4,
+        "overtime": 4,
+        "comment": "Per-day capacity of 4 takes precedence"
+      }
+    },
+    "multiplier_fallback": {
+      "description": "Multiplier fallback: perDay > global override > calcParams",
+      "input": {
+        "entries": [
+          {
+            "id": "mult_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T09:00:00Z",
+              "end": "2025-01-15T19:00:00Z",
+              "duration": "PT10H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "overrides": {
+          "user1": {
+            "mode": "perDay",
+            "multiplier": 1.5,
+            "perDayOverrides": {
+              "2025-01-15": { "multiplier": 2.0 }
+            }
+          }
+        },
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.25
+        }
+      },
+      "expected": {
+        "total": 10,
+        "regular": 8,
+        "overtime": 2,
+        "otPremium": 100,
+        "comment": "Per-day multiplier 2.0 used, premium = 2h * $50 * (2.0-1) = $100"
+      }
+    },
+    "tier2_threshold_crossing": {
+      "description": "Tier 2 overtime kicks in after threshold hours of OT",
+      "input": {
+        "entries": [
+          {
+            "id": "tier2_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T07:00:00Z",
+              "end": "2025-01-15T21:00:00Z",
+              "duration": "PT14H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5,
+          "enableTieredOT": true,
+          "tier2ThresholdHours": 4,
+          "tier2Multiplier": 2.0
+        }
+      },
+      "expected": {
+        "total": 14,
+        "regular": 8,
+        "overtime": 6,
+        "tier2Hours": 2,
+        "comment": "6h OT total, 4h at tier1 (1.5x), 2h at tier2 (2.0x)"
+      }
+    },
+    "time_off_partial_day": {
+      "description": "Partial time-off reduces effective capacity",
+      "input": {
+        "entries": [
+          {
+            "id": "pto_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T13:00:00Z",
+              "end": "2025-01-15T19:00:00Z",
+              "duration": "PT6H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "timeOff": {
+          "user1": { "2025-01-15": { "isFullDay": false, "hours": 4 } }
+        },
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 6,
+        "regular": 4,
+        "overtime": 2,
+        "comment": "Effective capacity = 8 - 4 = 4h, so 2h overtime"
+      }
+    },
+    "non_working_day_all_overtime": {
+      "description": "Work on non-working day (not in workingDays) is all overtime",
+      "input": {
+        "entries": [
+          {
+            "id": "nonwork_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-18T09:00:00Z",
+              "end": "2025-01-18T17:00:00Z",
+              "duration": "PT8H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "profile": {
+          "workCapacityHours": 8,
+          "workingDays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]
+        },
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5,
+          "useProfileWorkingDays": true
+        }
+      },
+      "expected": {
+        "total": 8,
+        "regular": 0,
+        "overtime": 8,
+        "comment": "Jan 18 2025 is Saturday, not in workingDays"
+      }
+    },
+    "midnight_spanning_entry": {
+      "description": "Entry spanning midnight is attributed entirely to start day (no splitting across dates)",
+      "input": {
+        "entries": [
+          {
+            "id": "midnight_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T22:00:00Z",
+              "end": "2025-01-16T02:00:00Z",
+              "duration": "PT4H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 4,
+        "regular": 4,
+        "overtime": 0,
+        "dateKey": "2025-01-15",
+        "comment": "Entry attributed to start day (2025-01-15), not split across midnight"
+      }
+    },
+    "zero_hourly_rate": {
+      "description": "Entry with zero hourly rate produces zero cost but correct hours",
+      "input": {
+        "entries": [
+          {
+            "id": "zero_rate_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T09:00:00Z",
+              "end": "2025-01-15T19:00:00Z",
+              "duration": "PT10H"
+            },
+            "hourlyRate": { "amount": 0 },
+            "billable": true
+          }
+        ],
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 10,
+        "regular": 8,
+        "overtime": 2,
+        "amount": 0,
+        "otPremium": 0,
+        "comment": "Zero rate means $0 cost but hours still calculated correctly"
+      }
+    },
+    "rounding_boundary_4_decimals": {
+      "description": "Rounding at 4 decimal precision boundary to verify no floating-point drift",
+      "input": {
+        "entries": [
+          {
+            "id": "rounding_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T09:00:00Z",
+              "end": "2025-01-15T17:15:00Z",
+              "duration": "PT8H15M"
+            },
+            "hourlyRate": { "amount": 3333 },
+            "billable": true
+          }
+        ],
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 8.25,
+        "regular": 8,
+        "overtime": 0.25,
+        "roundedToDecimals": 4,
+        "comment": "8.25h total, 8h regular, 0.25h OT - verify no floating-point accumulation errors"
+      }
+    },
+    "overlapping_timeoff_holiday": {
+      "description": "Holiday takes precedence when both holiday and time-off apply to same day",
+      "input": {
+        "entries": [
+          {
+            "id": "overlap_1",
+            "userId": "user1",
+            "userName": "Alice",
+            "timeInterval": {
+              "start": "2025-01-15T09:00:00Z",
+              "end": "2025-01-15T17:00:00Z",
+              "duration": "PT8H"
+            },
+            "hourlyRate": { "amount": 5000 },
+            "billable": true
+          }
+        ],
+        "holidays": {
+          "user1": { "2025-01-15": { "name": "Company Holiday" } }
+        },
+        "timeOff": {
+          "user1": { "2025-01-15": { "isFullDay": true, "hours": 0 } }
+        },
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "total": 8,
+        "regular": 0,
+        "overtime": 8,
+        "holidayCount": 1,
+        "timeOffCount": 1,
+        "effectiveCapacity": 0,
+        "comment": "Both holiday and time-off present, holiday takes precedence for capacity=0"
+      }
+    },
+    "stress_100_users_5000_entries": {
+      "description": "Performance baseline: 100 users with 5000 total entries",
+      "input": {
+        "userCount": 100,
+        "entryCount": 5000,
+        "entriesPerUser": 50,
+        "config": {
+          "dailyThreshold": 8,
+          "overtimeMultiplier": 1.5
+        }
+      },
+      "expected": {
+        "maxExecutionTimeMs": 5000,
+        "comment": "Calculation should complete within 5 seconds for 100 users / 5000 entries"
+      }
+    }
+  }
+}

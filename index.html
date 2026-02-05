@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self';
+             script-src 'self';
+             style-src 'self' 'unsafe-inline' https://resources.developer.clockify.me https://fonts.googleapis.com;
+             font-src 'self' https://fonts.gstatic.com;
+             img-src 'self' data:;
+             connect-src 'self' https://*.clockify.me https://reports.api.clockify.me https://*.sentry.io https://*.ingest.sentry.io;">
+  <meta name="description"
+    content="OTPLUS - Advanced overtime analysis addon for Clockify with profile-based capacity tracking, holiday integration, and billable hour breakdowns.">
+  <title>OTPLUS — Overtime Summary</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://resources.developer.clockify.me">
+  <link rel="stylesheet" href="https://resources.developer.clockify.me/ui/latest/css/main.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body class="density-compact">
+  <div class="container">
+
+    <!-- Main View (report interface) -->
+    <div id="mainView">
+
+    <!-- Header / Filter Bar -->
+    <div class="card filter-bar-compact">
+      <div class="filter-row">
+        <h1 class="compact-title">OTPLUS</h1>
+        <div class="button-group">
+          <button class="btn-primary btn-sm" id="generateBtn" data-testid="generate-btn" aria-busy="false">Generate</button>
+          <button class="btn-secondary btn-sm" id="refreshBtn" data-testid="refresh-btn" title="Bypass cache and fetch fresh data">&#8635; Refresh</button>
+          <button class="btn-secondary btn-sm" id="exportBtn" data-testid="export-btn" disabled>Export CSV</button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <div class="date-input-group">
+          <label for="startDate" class="date-label">From</label>
+          <input type="date" id="startDate" data-testid="start-date" class="compact-date" aria-label="Start date" autocomplete="off">
+        </div>
+        <div class="date-input-group">
+          <label for="endDate" class="date-label">To</label>
+          <input type="date" id="endDate" data-testid="end-date" class="compact-date" aria-label="End date" autocomplete="off">
+        </div>
+        <div class="button-group" style="margin-left: 12px; align-self: flex-end;">
+          <button class="btn-text btn-xs" id="datePresetThisWeek" data-testid="date-preset-this-week">This Week</button>
+          <button class="btn-text btn-xs" id="datePresetLastWeek" data-testid="date-preset-last-week">Last Week</button>
+          <button class="btn-text btn-xs" id="datePresetLast2Weeks" data-testid="date-preset-last-2-weeks">Last 2 Weeks</button>
+          <button class="btn-text btn-xs" id="datePresetLastMonth" data-testid="date-preset-last-month">Last Month</button>
+          <button class="btn-text btn-xs" id="datePresetThisMonth" data-testid="date-preset-this-month">This Month</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configuration Card: core toggles and amount mode -->
+    <div class="card">
+      <div class="card-title config-title-row">
+        <button type="button" class="section-toggle-btn" id="configToggle" aria-expanded="true"
+          aria-controls="configContent">
+          <span class="toggle-icon" aria-hidden="true">&#9660;</span>
+          Configuration
+        </button>
+        <button class="btn-accent-outline" id="openOverridesBtn" title="Configure user overrides">&#9881; Overrides</button>
+      </div>
+      <div id="configContent" role="region" aria-labelledby="configToggle">
+        <div class="config-toggle-grid">
+          <label class="config-item">
+            <input type="checkbox" id="useProfileCapacity" checked> Profile Capacity
+          </label>
+          <label class="config-item">
+            <input type="checkbox" id="useProfileWorkingDays" checked> Working Days
+          </label>
+          <label class="config-item">
+            <input type="checkbox" id="applyHolidays" checked> Apply Holidays
+          </label>
+          <label class="config-item">
+            <input type="checkbox" id="applyTimeOff" checked> Apply Time Off
+          </label>
+          <label class="config-item">
+            <input type="checkbox" id="showBillableBreakdown" checked> Billable Breakdown
+          </label>
+        </div>
+        <div class="config-inline">
+          <label class="config-item">
+            Daily Threshold <input type="number" id="configDaily" value="8" min="1" max="24" class="config-input-sm"
+              aria-label="Daily Capacity Threshold in Hours">
+            hrs
+            <span id="dailyThresholdHelper" class="config-helper" style="display:none; font-size:11px; color:var(--text-muted); margin-left:8px;">
+              (Using profile capacity)
+            </span>
+          </label>
+          <label class="config-item hidden" id="weeklyThresholdContainer">
+            Weekly Threshold <input type="number" id="configWeekly" value="40" min="0" max="168" class="config-input-sm"
+              aria-label="Weekly Capacity Threshold in Hours">
+            hrs
+          </label>
+          <label class="config-item">
+            OT Basis
+            <select id="overtimeBasis" class="config-input-sm" aria-label="Overtime calculation basis">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="both">Both</option>
+            </select>
+          </label>
+          <label class="config-item">
+            Multiplier <input type="number" id="configMultiplier" value="1.5" min="1" max="5" step="0.1"
+              class="config-input-sm" aria-label="Overtime Multiplier"> x
+          </label>
+          <label class="config-item">
+            <input type="checkbox" id="enableTieredOT"> Tiered OT
+          </label>
+          <span class="tier2-config">
+            <label class="config-item">
+              Tier 2 starts after <input type="number" id="configTier2Threshold" value="0" min="0" max="999" step="1"
+                class="config-input-sm" aria-label="Tier 2 Threshold in OT Hours"> OT hrs
+            </label>
+            <label class="config-item">
+              Tier 2 multiplier <input type="number" id="configTier2Multiplier" value="2.0" min="1" max="5" step="0.1"
+                class="config-input-sm" aria-label="Tier 2 Overtime Multiplier"> x
+            </label>
+          </span>
+          <label class="config-item" id="amountDisplayContainer">
+            Amounts
+            <select id="amountDisplay" class="config-input-sm" aria-label="Amount display mode">
+              <option value="earned">Amount</option>
+              <option value="cost">Cost</option>
+              <option value="profit">Profit</option>
+            </select>
+          </label>
+          <label class="config-item">
+            <input type="checkbox" id="showDecimalTime"> Decimal time
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Status Banner -->
+    <div id="apiStatusBanner" data-testid="api-status-banner" class="card hidden api-status-banner" role="alert" aria-live="polite" aria-atomic="true">
+    </div>
+
+    <!-- Pagination Warning Banner -->
+    <div id="paginationWarningBanner" data-testid="pagination-warning-banner" class="card hidden pagination-warning-banner" role="alert" aria-live="polite">
+      <strong>Results may be incomplete.</strong> The data exceeded the pagination limit. Narrow your date range for complete results.
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingState" class="hidden" role="status" aria-live="polite" aria-label="Loading report data">
+      <div class="skeleton" aria-hidden="true"></div>
+      <div class="skeleton" aria-hidden="true"></div>
+    </div>
+
+    <!-- Results Container -->
+    <!-- Hidden by default; JS toggles visibility once report data has been rendered -->
+    <div id="resultsContainer" data-testid="results-container" class="hidden" aria-live="polite">
+
+      <!-- Summary Strip -->
+      <div class="summary-inline" id="summaryStrip" data-testid="summary-strip"></div>
+
+      <!-- Tab Navigation between Summary and Detailed reports -->
+      <div class="card tab-nav-card" id="tabNavCard" role="tablist" aria-label="Report views">
+        <button type="button" class="btn-text btn-xs tab-btn active" data-tab="summary" role="tab" aria-selected="true"
+          aria-controls="summaryCard" id="tab-summary">Summary</button>
+        <button type="button" class="btn-text btn-xs tab-btn" data-tab="detailed" role="tab" aria-selected="false"
+          aria-controls="detailedCard" id="tab-detailed">Detailed</button>
+      </div>
+
+      <!-- Summary Card: aggregated metrics grouped by selector -->
+      <div class="card" id="summaryCard" data-testid="summary-card" role="tabpanel" aria-labelledby="tab-summary">
+        <div class="summary-controls" style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
+          <label for="groupBySelect" style="font-size: 13px; font-weight: 500;">Group by:</label>
+          <select id="groupBySelect" data-testid="group-by-select" class="cl-select" style="flex: 0 0 auto; min-width: 120px;">
+            <option value="user">User</option>
+            <option value="project">Project</option>
+            <option value="client">Client</option>
+            <option value="task">Task</option>
+            <option value="date">Date</option>
+            <option value="week">Week</option>
+          </select>
+          <div id="summaryExpandToggleContainer"></div>
+        </div>
+        <div class="table-scroll">
+          <table class="report-table" aria-label="User summary">
+            <thead>
+              <tr id="summaryHeaderRow">
+                <!-- Headers dynamically generated by renderSummaryHeaders() -->
+              </tr>
+            </thead>
+            <tbody id="summaryTableBody" data-testid="summary-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Detailed Card: per-entry view with filters -->
+      <div class="card hidden" id="detailedCard" data-testid="detailed-card" role="tabpanel" aria-labelledby="tab-detailed">
+        <div class="filter-chips" id="detailedFilters" role="group" aria-label="Filter entries">
+          <button type="button" class="chip active" data-filter="all">All Entries</button>
+          <button type="button" class="chip" data-filter="holiday">Holidays Only</button>
+          <button type="button" class="chip" data-filter="offday">Off-days Only</button>
+          <button type="button" class="chip" data-filter="billable">Billable Only</button>
+        </div>
+        <div id="detailedTableContainer"></div>
+      </div>
+    </div>
+
+    <div id="emptyState" data-testid="empty-state" class="card empty-state">
+      Select dates to begin.
+    </div>
+
+    </div><!-- End mainView -->
+
+    <!-- Overrides Page (full-page settings view) -->
+    <div id="overridesPage" class="hidden">
+      <div class="card overrides-page-header">
+        <button class="btn-text" id="closeOverridesBtn">&#8592; Back to Report</button>
+        <h2 class="overrides-page-title">User Overrides</h2>
+      </div>
+      <div class="card overrides-intro">
+        <p>Configure capacity and overtime multiplier overrides per user. Changes apply immediately when you return to the report.</p>
+      </div>
+      <div id="overridesUserList"></div>
+    </div>
+
+  </div>
+
+  <!-- Entry Point -->
+  <script type="module" src="js/main.js?v=17"></script>
+</body>
+
+</html>

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.3",
+  "key": "overtime-summary",
+  "name": "Overtime Summary",
+  "baseUrl": "https://apet97.github.io/otrepo",
+  "description": "Analyze overtime hours and capacity utilization with configurable thresholds.",
+  "minimalSubscriptionPlan": "STANDARD",
+  "scopes": [
+    "TIME_ENTRY_READ",
+    "USER_READ",
+    "TIME_OFF_READ",
+    "WORKSPACE_READ",
+    "REPORTS_READ"
+  ],
+  "components": [
+    {
+      "type": "sidebar",
+      "accessLevel": "ADMINS",
+      "path": "/",
+      "label": "Overtime Summary"
+    }
+  ]
+}
