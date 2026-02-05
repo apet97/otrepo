@@ -32,7 +32,7 @@
     "deps:graph": "depcruise --config .dependency-cruiser.cjs --output-type dot js/ | dot -T svg > dependency-graph.svg"
   },
   "dependencies": {
-    "@sentry/browser": "10.36.0"
+    "@sentry/browser": "10.38.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",
