@@ -68,7 +68,7 @@ jobs:
       - run: npm ci
       - run: npm run test:coverage
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: coverage/
@@ -87,7 +87,7 @@ jobs:
       - run: npm ci
       - run: npm run build:prod
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dist
           path: dist/
@@ -123,7 +123,7 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
       - name: Upload test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: playwright-report
@@ -151,7 +151,7 @@ jobs:
           cd dist
           zip -r ../otplus-v${{ steps.version.outputs.version }}.zip .
       - name: Upload release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: otplus-v${{ steps.version.outputs.version }}
           path: otplus-v${{ steps.version.outputs.version }}.zip
@@ -173,7 +173,7 @@ jobs:
       # Stryker config enforces 100% threshold - job will fail if not met
       - run: npm run test:mutants
       - name: Upload mutation report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: mutation-report
