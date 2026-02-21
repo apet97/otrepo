@@ -29,7 +29,8 @@ Thumbs.db
 .env
 .env.local
 .stryker-tmp/
-.claude/settings.local.json
+.claude/
+CLAUDE.md
 
 # Mutation testing outputs
 mutation-output*.txt
