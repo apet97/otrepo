@@ -55,15 +55,18 @@ interface LoggerConfig {
  * Default configuration based on environment
  */
 const getDefaultConfig = (): LoggerConfig => {
+    const hasLocalStorage =
+        typeof localStorage !== 'undefined' && typeof localStorage?.getItem === 'function';
+
     const isDebug =
-        typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEYS.DEBUG) === 'true';
+        hasLocalStorage && localStorage.getItem(STORAGE_KEYS.DEBUG) === 'true';
 
     const isProduction =
         typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
 
     // Check for persisted output format preference
     let outputFormat: LogOutputFormat = 'text';
-    if (typeof localStorage !== 'undefined') {
+    if (hasLocalStorage) {
         const savedFormat = localStorage.getItem(STORAGE_KEYS.LOG_FORMAT);
         if (savedFormat === 'json' || savedFormat === 'text') {
             outputFormat = savedFormat;

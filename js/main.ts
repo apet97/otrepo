@@ -645,7 +645,6 @@ export function isAllowedOrigin(currentOrigin: string): boolean {
         /^https:\/\/[a-z]{2}\.app\.clockify\.me$/,
         /^https:\/\/[a-z]{2}\.clockify\.me$/,
         // Development/localhost (only in non-production)
-        // eslint-disable-next-line no-restricted-globals
         ...(process.env.NODE_ENV !== 'production'
             ? ['http://localhost', /^http:\/\/localhost:\d+$/]
             : []),
