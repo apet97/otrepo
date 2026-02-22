@@ -65,19 +65,38 @@ test.describe('Report Generation', () => {
         // Wait for results
         await expect(page.locator('[data-testid="results-container"]')).toBeVisible({ timeout: 10000 });
 
+        const summaryTab = page.locator('[data-tab="summary"]');
+        const detailedTab = page.locator('[data-tab="detailed"]');
+        const activateTab = async (
+            tab: typeof summaryTab,
+            expectedSelected: 'true' | 'false',
+            fallbackKey: 'Enter' | 'Space' = 'Enter'
+        ) => {
+            await tab.click();
+            if ((await tab.getAttribute('aria-selected')) !== expectedSelected) {
+                await tab.focus();
+                await page.keyboard.press(fallbackKey);
+            }
+            await expect(tab).toHaveAttribute('aria-selected', expectedSelected, { timeout: 10000 });
+        };
+
         // Summary should be visible by default
+        await expect(summaryTab).toHaveAttribute('aria-selected', 'true');
+        await expect(detailedTab).toHaveAttribute('aria-selected', 'false');
         await expect(page.locator('[data-testid="summary-card"]')).toBeVisible();
         await expect(page.locator('[data-testid="detailed-card"]')).toBeHidden();
 
         // Click detailed tab
-        await page.click('[data-tab="detailed"]');
+        await activateTab(detailedTab, 'true');
 
-        // Detailed should now be visible
+        // Detailed should now be active and visible.
+        await expect(summaryTab).toHaveAttribute('aria-selected', 'false');
         await expect(page.locator('[data-testid="detailed-card"]')).toBeVisible();
         await expect(page.locator('[data-testid="summary-card"]')).toBeHidden();
 
         // Click back to summary
-        await page.click('[data-tab="summary"]');
+        await activateTab(summaryTab, 'true');
+        await expect(detailedTab).toHaveAttribute('aria-selected', 'false');
         await expect(page.locator('[data-testid="summary-card"]')).toBeVisible();
         await expect(page.locator('[data-testid="detailed-card"]')).toBeHidden();
     });

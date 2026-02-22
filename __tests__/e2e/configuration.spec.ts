@@ -186,14 +186,17 @@ test.describe('User Overrides', () => {
         await page.click('#openOverridesBtn');
         await page.waitForSelector('#overridesPage:not(.hidden)', { timeout: 5000 });
 
-        // Find first card's capacity input
-        const firstCapacityInput = page.locator('.override-user-card:first-child input[data-field="capacity"]');
+        // Expand first user card so inputs are visible.
+        const firstCard = page.locator('.override-user-card').first();
+        await expect(firstCard).toHaveClass(/collapsed/);
+        await firstCard.locator('.override-user-header').click();
+        await expect(firstCard).not.toHaveClass(/collapsed/);
 
-        if (await firstCapacityInput.isVisible()) {
-            // Clear and enter new value
-            await firstCapacityInput.fill('6');
-            await expect(firstCapacityInput).toHaveValue('6');
-        }
+        // Find first card's capacity input
+        const firstCapacityInput = firstCard.locator('input[data-field="capacity"]');
+        await expect(firstCapacityInput).toBeVisible();
+        await firstCapacityInput.fill('6');
+        await expect(firstCapacityInput).toHaveValue('6');
     });
 
     test('mode selector changes override mode', async ({ page }) => {
@@ -201,14 +204,17 @@ test.describe('User Overrides', () => {
         await page.click('#openOverridesBtn');
         await page.waitForSelector('#overridesPage:not(.hidden)', { timeout: 5000 });
 
-        // Find first card's mode selector
-        const modeSelector = page.locator('.override-user-card:first-child select.mode-select').first();
+        // Expand first user card so controls are visible.
+        const firstCard = page.locator('.override-user-card').first();
+        await expect(firstCard).toHaveClass(/collapsed/);
+        await firstCard.locator('.override-user-header').click();
+        await expect(firstCard).not.toHaveClass(/collapsed/);
 
-        if (await modeSelector.isVisible()) {
-            // Change to weekly mode
-            await modeSelector.selectOption('weekly');
-            await expect(modeSelector).toHaveValue('weekly');
-        }
+        // Find first card's mode selector
+        const modeSelector = firstCard.locator('select.mode-select').first();
+        await expect(modeSelector).toBeVisible();
+        await modeSelector.selectOption('weekly');
+        await expect(modeSelector).toHaveValue('weekly');
     });
 
     test('back button returns to main view', async ({ page }) => {

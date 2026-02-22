@@ -168,6 +168,9 @@ test.describe('API Failure Handling', () => {
     });
 
     test('should recover when retry succeeds after initial failure', async ({ page }) => {
+        // Setup non-users mocks first so the users route below can intentionally override it.
+        await setupApiMocks(page, { shouldFailUsers: false });
+
         // This tests that the app can recover - first call fails, subsequent calls succeed
         let callCount = 0;
         await page.route('**/v1/workspaces/*/users', async (route) => {
@@ -191,16 +194,25 @@ test.describe('API Failure Handling', () => {
             }
         });
 
-        // Setup other mocks normally
-        await setupApiMocks(page, { shouldFailUsers: false });
-
         await navigateWithToken(page);
-        // With retries, app may end up in either success or error state
+        // With retries, app may end up in either success or error state during initialization
         await waitForAppReady(page, { expectError: true });
 
-        // With retries, app should eventually show content or error
-        // The exact behavior depends on retry logic
-        await page.waitForTimeout(2000);
+        // Trigger report generation explicitly so we can assert a reachable terminal UI state.
+        await page.fill('[data-testid="start-date"]', '2025-01-08');
+        await page.fill('[data-testid="end-date"]', '2025-01-15');
+        await page.click('[data-testid="generate-btn"]');
+
+        // With retries, app should eventually show content or an API status banner.
+        await page.waitForFunction(() => {
+            const results = document.querySelector('[data-testid="results-container"]') as HTMLElement | null;
+            const banner = document.querySelector('[data-testid="api-status-banner"]') as HTMLElement | null;
+            const isVisible = (el: HTMLElement | null) => !!el && !el.classList.contains('hidden');
+            return isVisible(results) || isVisible(banner);
+        }, { timeout: 15000 });
+
+        // Ensure we exercised the intended retry behavior (initial failure + retry attempt).
+        expect(callCount).toBeGreaterThanOrEqual(2);
 
         // Verify page didn't crash
         expect(await page.title()).toBeDefined();
