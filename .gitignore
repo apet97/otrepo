@@ -29,8 +29,17 @@ Thumbs.db
 .env
 .env.local
 .stryker-tmp/
+
+# Local assistant/session docs (not part of published repository)
 .claude/
+AGENTS.md
 CLAUDE.md
+CODEX-PROMPT.md
+REVIEW-SESSION-PROMPT.md
+TEST-REMEDIATION-PLAN.md
+TEST_QUALITY_AUDIT_PROMPT.md
+TODO.md
+marketplaceDocs/
 
 # Mutation testing outputs
 mutation-output*.txt

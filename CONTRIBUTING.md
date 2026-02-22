@@ -1,20 +1,44 @@
 # Contributing
 
-## Quick start
-- Install deps: `npm ci`
-- Run tests: `npm test`
-- Coverage gate: `npm run test:coverage`
-- Lint: `npm run lint`
-- Typecheck: `npm run typecheck`
-- E2E (UI/orchestration changes): `npm run test:e2e`
+## Setup
 
-## Definition of done
-- Behavior changes have tests and docs updated.
-- `npm run test:coverage` passes (100% thresholds).
-- Lint/typecheck are clean.
-- No new dependencies without approval.
+```bash
+npm ci
+npm run build
+```
 
-## Style
-- Prefer small, focused diffs.
-- Keep `js/types.ts` in sync with runtime changes.
-- Avoid full-file reformatting.
+## Required Verification
+
+For behavior/code changes:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run test:coverage
+```
+
+For UI/orchestration changes, also run:
+
+```bash
+npm run test:e2e
+```
+
+Optional focused checks:
+
+- Accessibility-focused UI changes: `npm run test:a11y`
+- Performance-sensitive changes: `npm run test:perf`
+
+## Definition of Done
+
+- Behavior changes include tests and docs updates.
+- Required verification passes for the change scope.
+- No lint errors and no type errors.
+- Coverage thresholds remain green.
+- Diffs are focused and avoid unrelated refactors.
+
+## Pull Request Notes
+
+- Include a concise summary and risk assessment.
+- List exact commands run and outcomes.
+- Call out any residual risks or known limitations.
