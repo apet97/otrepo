@@ -35,5 +35,5 @@ npm run test:coverage
 
 ## Current Baseline (2026-02-22)
 
-- `npm test`: 91 suites / 3041 tests passing
-- `npm run test:e2e`: 255 tests passing
+- `npm test`: 84 suites / 2979 tests passing
+- `npm run test:e2e`: 237 tests passing
