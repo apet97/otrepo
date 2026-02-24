@@ -901,15 +901,24 @@ class Store {
         /* istanbul ignore else -- key is always truthy when claims.workspaceId exists */
         if (key) {
             const saved = safeGetItem(key);
-            this.overrides = safeJSONParse<Record<string, UserOverride>>(saved, {});
+            const parsed = safeJSONParse<Record<string, UserOverride> | unknown>(saved, {});
+
+            // Guard: if stored data is an encrypted blob or non-object (e.g. {ct, iv, v}),
+            // skip it — loadOverridesEncrypted() will handle decryption later.
+            if (
+                !parsed ||
+                typeof parsed !== 'object' ||
+                Array.isArray(parsed) ||
+                'ct' in (parsed as Record<string, unknown>)
+            ) {
+                this.overrides = {};
+                return;
+            }
+
+            this.overrides = parsed as Record<string, UserOverride>;
 
             // Migrate old format: add mode if missing
-            Object.keys(this.overrides).forEach((userId) => {
-                if (!this.overrides[userId].mode) {
-                    // Backfill legacy overrides that lacked a mode flag
-                    this.overrides[userId].mode = 'global';
-                }
-            });
+            this._migrateOverrideFormat();
         }
     }
 
