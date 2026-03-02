@@ -41,9 +41,9 @@
     "@cyclonedx/cyclonedx-npm": "^4.1.2",
     "@eslint/js": "^9.39.2",
     "@playwright/test": "^1.58.2",
-    "@stryker-mutator/core": "^9.5.1",
-    "@stryker-mutator/jest-runner": "^9.5.1",
-    "@stryker-mutator/typescript-checker": "^9.5.1",
+    "@stryker-mutator/core": "^9.6.0",
+    "@stryker-mutator/jest-runner": "^9.6.0",
+    "@stryker-mutator/typescript-checker": "^9.6.0",
     "@types/jest": "^30.0.0",
     "babel-jest": "^30.2.0",
     "dependency-cruiser": "^17.3.8",
@@ -58,7 +58,7 @@
     "prettier": "^3.8.1",
     "ts-jest": "^29.4.6",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.55.0"
+    "typescript-eslint": "^8.56.1"
   },
   "keywords": [
     "clockify",
