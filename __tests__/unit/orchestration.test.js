@@ -37,17 +37,10 @@ import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals
 import { store } from '../../js/state.js';
 import { standardAfterEach } from '../helpers/setup.js';
 import { createMockJwtToken } from '../helpers/mock-data.js';
+import { mockResponse } from '../helpers/api-test-helpers.js';
+import { StoragePolyfill } from '../helpers/storage-polyfill.js';
 
 // Polyfills for Node environment
-class StoragePolyfill {
-  constructor() { this._data = {}; }
-  getItem(key) { return this._data[key] || null; }
-  setItem(key, value) { this._data[key] = String(value); }
-  removeItem(key) { delete this._data[key]; }
-  clear() { this._data = {}; }
-  get length() { return Object.keys(this._data).length; }
-  key(index) { return Object.keys(this._data)[index] || null; }
-}
 global.sessionStorage = new StoragePolyfill();
 global.localStorage = new StoragePolyfill();
 global.requestAnimationFrame = (fn) => setTimeout(fn, 16);
@@ -55,26 +48,6 @@ global.cancelAnimationFrame = (id) => clearTimeout(id);
 
 // Mock global fetch
 global.fetch = jest.fn();
-
-/**
- * Creates a mock response object with all required methods for API tests.
- */
-function mockResponse(data, { ok = true, status = 200, headers = {} } = {}) {
-  const jsonStr = JSON.stringify(data);
-  return {
-    ok,
-    status,
-    json: async () => data,
-    text: async () => jsonStr,
-    headers: {
-      get: (name) => {
-        if (name === 'Content-Length') return String(jsonStr.length);
-        if (name === 'Retry-After') return headers['Retry-After'] || null;
-        return headers[name] || null;
-      }
-    }
-  };
-}
 
 describe('Data Flow Orchestration', () => {
   beforeEach(async () => {

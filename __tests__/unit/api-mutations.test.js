@@ -11,32 +11,13 @@ import { webcrypto } from 'crypto';
 import { Api, resetRateLimiter, resetCircuitBreaker } from '../../js/api.js';
 import { store, resetFallbackStorage } from '../../js/state.js';
 import { generateMockUsers, createMockTokenPayload, createMockJwtToken } from '../helpers/mock-data.js';
+import { mockResponse } from '../helpers/api-test-helpers.js';
 
 // Set up Web Crypto API for Node environment (required for body signing in POST requests)
 global.crypto = webcrypto;
 
 // Mock fetch globally
 global.fetch = jest.fn();
-
-/**
- * Creates a mock response object with all required methods for API tests.
- * The API's response size check requires text() method when Content-Length is missing.
- */
-function mockResponse(data, { ok = true, status = 200, headers = {} } = {}) {
-  const jsonStr = JSON.stringify(data);
-  return {
-    ok,
-    status,
-    json: async () => data,
-    text: async () => jsonStr,
-    headers: {
-      get: (name) => {
-        if (name === 'Content-Length') return String(jsonStr.length);
-        return headers[name] || null;
-      }
-    }
-  };
-}
 
 describe('API Module - Mutation Test Coverage', () => {
   beforeEach(async () => {

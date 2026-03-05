@@ -9,16 +9,7 @@ import { store, resetFallbackStorage } from '../../js/state.js';
 import { STORAGE_KEYS } from '../../js/constants.js';
 import { deriveEncryptionKey, deriveLegacyEncryptionKey, encryptData, retrieveEncrypted } from '../../js/crypto.js';
 import { standardAfterEach } from '../helpers/setup.js';
-
-class StoragePolyfill {
-  constructor() { this._data = {}; }
-  getItem(key) { return this._data[key] || null; }
-  setItem(key, value) { this._data[key] = String(value); }
-  removeItem(key) { delete this._data[key]; }
-  clear() { this._data = {}; }
-  get length() { return Object.keys(this._data).length; }
-  key(index) { return Object.keys(this._data)[index] || null; }
-}
+import { StoragePolyfill } from '../helpers/storage-polyfill.js';
 
 describe('Encryption Migration', () => {
   beforeEach(() => {

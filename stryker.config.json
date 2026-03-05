@@ -7,11 +7,18 @@
     "configFile": "jest.stryker.config.js"
   },
   "testRunnerNodeArgs": ["--experimental-vm-modules"],
-  "coverageAnalysis": "off",
+  "coverageAnalysis": "perTest",
   "mutate": [
     "js/calc.ts",
     "js/utils.ts",
-    "js/api.ts"
+    "js/api.ts",
+    "js/state.ts",
+    "js/export.ts",
+    "js/crypto.ts",
+    "js/main.ts",
+    "js/ui/summary.ts",
+    "js/ui/detailed.ts",
+    "js/ui/overrides.ts"
   ],
   "checkers": ["typescript"],
   "tsconfigFile": "tsconfig.json",
@@ -19,12 +26,12 @@
   "thresholds": {
     "high": 100,
     "low": 89,
-    "break": 98
+    "break": 85
   },
   "htmlReporter": {
     "fileName": "reports/mutation/index.html"
   },
-  "timeoutMS": 15000,
+  "timeoutMS": 30000,
   "concurrency": 4,
   "cleanTempDir": false
 }

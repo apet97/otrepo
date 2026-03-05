@@ -375,28 +375,10 @@ describe('URL Resolution Algorithm Specification', () => {
 import { Api, resetRateLimiter, resetCircuitBreaker } from '../../js/api.js';
 import { store } from '../../js/state.js';
 import { createMockJwtToken } from '../helpers/mock-data.js';
+import { mockResponse } from '../helpers/api-test-helpers.js';
 
 // Mock fetch globally
 global.fetch = jest.fn();
-
-/**
- * Creates a mock response object with all required methods for API tests.
- */
-function mockResponse(data, { ok = true, status = 200, headers = {} } = {}) {
-  const jsonStr = JSON.stringify(data);
-  return {
-    ok,
-    status,
-    json: async () => data,
-    text: async () => jsonStr,
-    headers: {
-      get: (name) => {
-        if (name === 'Content-Length') return String(jsonStr.length);
-        return headers[name] || null;
-      }
-    }
-  };
-}
 
 describe('URL Resolution Integration Tests', () => {
   beforeEach(async () => {

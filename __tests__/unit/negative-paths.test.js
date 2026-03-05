@@ -25,48 +25,19 @@ import {
   resetStore
 } from '../helpers/fixtures.js';
 import { createMockTokenPayload, createMockJwtToken } from '../helpers/mock-data.js';
+import { mockResponse } from '../helpers/api-test-helpers.js';
+import { StoragePolyfill } from '../helpers/storage-polyfill.js';
 
 // Set up Web Crypto API for Node environment (required for body signing in POST requests)
 global.crypto = webcrypto;
 
 // Set up localStorage polyfill for Node environment
-class StoragePolyfill {
-  constructor() {
-    this._data = {};
-  }
-  getItem(key) { return this._data[key] || null; }
-  setItem(key, value) { this._data[key] = String(value); }
-  removeItem(key) { delete this._data[key]; }
-  clear() { this._data = {}; }
-  get length() { return Object.keys(this._data).length; }
-  key(index) { return Object.keys(this._data)[index] || null; }
-}
 global.Storage = StoragePolyfill;
 global.localStorage = new StoragePolyfill();
 global.sessionStorage = new StoragePolyfill();
 
 // Mock fetch globally
 global.fetch = jest.fn();
-
-/**
- * Creates a mock response object with all required methods for API tests.
- * The API's response size check requires text() method when Content-Length is missing.
- */
-function mockResponse(data, { ok = true, status = 200, headers = {} } = {}) {
-  const jsonStr = JSON.stringify(data);
-  return {
-    ok,
-    status,
-    json: async () => data,
-    text: async () => jsonStr,
-    headers: {
-      get: (name) => {
-        if (name === 'Content-Length') return String(jsonStr.length);
-        return headers[name] || null;
-      }
-    }
-  };
-}
 
 describe('Negative Path Testing', () => {
   beforeEach(async () => {
