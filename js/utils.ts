@@ -50,7 +50,7 @@ export function validateRequiredFields(
     }
 
     const record = obj as Record<string, unknown>;
-    const missing = requiredFields.filter((field) => !record[field]);
+    const missing = requiredFields.filter((field) => record[field] === undefined || record[field] === null);
 
     if (missing.length > 0) {
         throw createValidationError(`${context} missing required fields: ${missing.join(', ')}`);
@@ -107,7 +107,7 @@ export function validateISODateString(value: unknown, field: string): string {
     const str = validateString(value, field);
 
     // Basic ISO format check (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ssZ)
-    const isoRegex = /^\d{4}-\d{2}-\d{2}/;
+    const isoRegex = /^\d{4}-\d{2}-\d{2}($|T)/;
     if (!isoRegex.test(str)) {
         throw createValidationError(`${field} must be in ISO format (YYYY-MM-DD)`);
     }
@@ -683,8 +683,10 @@ export function formatCurrency(amount: number, currency = 'USD'): string {
 export function formatHours(hours: number | null | undefined): string {
     if (hours == null || isNaN(hours)) return '0h';
     const h = parseFloat(String(hours));
-    let whole = Math.floor(h);
-    let mins = Math.round((h - whole) * 60);
+    const sign = h < 0 ? '-' : '';
+    const abs = Math.abs(h);
+    let whole = Math.floor(abs);
+    let mins = Math.round((abs - whole) * 60);
 
     // Handle edge case: 1.9999h rounds to 60 mins -> should be 2h 0m
     if (mins === 60) {
@@ -692,7 +694,7 @@ export function formatHours(hours: number | null | undefined): string {
         mins = 0;
     }
 
-    return mins === 0 ? `${whole}h` : `${whole}h ${mins}m`;
+    return mins === 0 ? `${sign}${whole}h` : `${sign}${whole}h ${mins}m`;
 }
 
 /**
@@ -829,9 +831,9 @@ export const IsoUtils = {
  */
 export function getISOWeek(date: Date): number {
     const target = new Date(date.valueOf());
-    const dayNumber = (date.getDay() + 6) % 7; // Mon=0, Sun=6
-    target.setDate(target.getDate() - dayNumber + 3); // Thursday of the week
-    const firstThursday = new Date(target.getFullYear(), 0, 4);
+    const dayNumber = (date.getUTCDay() + 6) % 7; // Mon=0, Sun=6
+    target.setUTCDate(target.getUTCDate() - dayNumber + 3); // Thursday of the week
+    const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
     const diff = target.getTime() - firstThursday.getTime();
     const weekNumber = 1 + Math.round(diff / 604800000); // 604800000ms = 1 week
     return weekNumber;

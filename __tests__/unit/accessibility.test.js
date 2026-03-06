@@ -118,7 +118,7 @@ describe('Accessibility - real UI output', () => {
     expect(table?.getAttribute('aria-label')).toBe('Detailed time entries');
   });
 
-  it('filter chips have aria-selected attribute based on active state', () => {
+  it('filter chips have aria-checked attribute based on active state', () => {
     const analysis = createBasicAnalysis();
     renderDetailedTable(analysis, 'all');
 
@@ -130,26 +130,26 @@ describe('Accessibility - real UI output', () => {
     const offDayChip = document.querySelector('#detailedFilters .chip[data-filter="offday"]');
     const billableChip = document.querySelector('#detailedFilters .chip[data-filter="billable"]');
 
-    expect(allChip?.getAttribute('aria-selected')).toBe('true');
-    expect(holidayChip?.getAttribute('aria-selected')).toBe('false');
-    expect(offDayChip?.getAttribute('aria-selected')).toBe('false');
-    expect(billableChip?.getAttribute('aria-selected')).toBe('false');
+    expect(allChip?.getAttribute('aria-checked')).toBe('true');
+    expect(holidayChip?.getAttribute('aria-checked')).toBe('false');
+    expect(offDayChip?.getAttribute('aria-checked')).toBe('false');
+    expect(billableChip?.getAttribute('aria-checked')).toBe('false');
   });
 
-  it('filter chips update aria-selected when filter changes', () => {
+  it('filter chips update aria-checked when filter changes', () => {
     const analysis = createBasicAnalysis();
 
     // First render with 'all' filter
     renderDetailedTable(analysis, 'all');
     let allChip = document.querySelector('#detailedFilters .chip[data-filter="all"]');
-    expect(allChip?.getAttribute('aria-selected')).toBe('true');
+    expect(allChip?.getAttribute('aria-checked')).toBe('true');
 
     // Re-render with 'billable' filter
     renderDetailedTable(analysis, 'billable');
     allChip = document.querySelector('#detailedFilters .chip[data-filter="all"]');
     const billableChip = document.querySelector('#detailedFilters .chip[data-filter="billable"]');
-    expect(allChip?.getAttribute('aria-selected')).toBe('false');
-    expect(billableChip?.getAttribute('aria-selected')).toBe('true');
+    expect(allChip?.getAttribute('aria-checked')).toBe('false');
+    expect(billableChip?.getAttribute('aria-checked')).toBe('true');
   });
 
   it('per-day table headers have scope="col"', () => {

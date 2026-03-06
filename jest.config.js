@@ -8,6 +8,9 @@ export default {
   },
   // Use custom resolver to map .js to .ts for project files
   resolver: './jest.resolver.cjs',
+  setupFilesAfterEnv: [
+    './__tests__/helpers/global-setup.js'
+  ],
   testMatch: [
     '**/__tests__/**/*.test.js'
   ],

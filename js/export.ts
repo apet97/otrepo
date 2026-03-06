@@ -192,8 +192,8 @@ export function downloadCsv(
     link.click();
     document.body.removeChild(link);
 
-    // Prevent memory leak by revoking object URL
-    URL.revokeObjectURL(url);
+    // Delay cleanup to ensure the browser has time to initiate the download
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
 
     // ========================================================================
     // AUDIT LOGGING

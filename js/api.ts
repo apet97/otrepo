@@ -201,20 +201,17 @@ export function checkTokenExpiration(): {
     const token = store.token;
 
     if (!token) {
-        // No token - allow request to proceed (server will handle authentication)
-        // This supports scenarios where:
-        // - Initial token fetch doesn't require authentication
-        // - Some endpoints may not require authentication
-        // - Tests may use null/empty tokens
-        return { isExpired: false, expiresIn: null, shouldWarn: false };
+        // No token means we can't authenticate — treat as expired
+        return { isExpired: true, expiresIn: null, shouldWarn: false };
     }
 
     try {
         // Extract payload from JWT (format: header.payload.signature)
         const parts = token.split('.');
         if (parts.length !== 3) {
-            apiLogger.warn('Token is not a JWT; blocking request for safety');
-            return { isExpired: true, expiresIn: null, shouldWarn: false };
+            // Non-JWT token (e.g., API key) — cannot check expiration, allow request
+            apiLogger.info('Token is not a JWT; skipping expiration check');
+            return { isExpired: false, expiresIn: null, shouldWarn: false };
         }
 
         // Decode the payload (base64url) with proper padding handling
@@ -648,8 +645,8 @@ function recordSuccess(): void {
             newState.successCount = 0;
             newState.lastFailureTime = null;
             newState.nextRetryTime = null;
-            // Single atomic assignment
-            Object.assign(circuitBreaker, newState);
+            // Single atomic reference swap
+            circuitBreaker = newState;
             apiLogger.info('Circuit breaker closed: API recovered');
             updateCircuitBreakerMetrics();
             return;
@@ -659,8 +656,8 @@ function recordSuccess(): void {
         newState.failureCount = 0;
     }
 
-    // Single atomic assignment
-    Object.assign(circuitBreaker, newState);
+    // Single atomic reference swap
+    circuitBreaker = newState;
     updateCircuitBreakerMetrics();
 }
 
@@ -688,8 +685,8 @@ function recordFailure(isRetryable: boolean): void {
         newState.state = 'OPEN';
         newState.successCount = 0;
         newState.nextRetryTime = Date.now() + (store.config.circuitBreakerResetMs ?? CIRCUIT_BREAKER_CONFIG.resetTimeout);
-        // Single atomic assignment
-        Object.assign(circuitBreaker, newState);
+        // Single atomic reference swap
+        circuitBreaker = newState;
         apiLogger.warn('Circuit breaker reopened: Recovery failed');
         updateCircuitBreakerMetrics();
     } else if (
@@ -699,15 +696,15 @@ function recordFailure(isRetryable: boolean): void {
         // Too many failures, open the circuit
         newState.state = 'OPEN';
         newState.nextRetryTime = Date.now() + (store.config.circuitBreakerResetMs ?? CIRCUIT_BREAKER_CONFIG.resetTimeout);
-        // Single atomic assignment
-        Object.assign(circuitBreaker, newState);
+        // Single atomic reference swap
+        circuitBreaker = newState;
         apiLogger.warn(
             `Circuit breaker opened: ${newState.failureCount} consecutive failures. Will retry after ${(store.config.circuitBreakerResetMs ?? CIRCUIT_BREAKER_CONFIG.resetTimeout)}ms`
         );
         updateCircuitBreakerMetrics();
     } else {
-        // Single atomic assignment
-        Object.assign(circuitBreaker, newState);
+        // Single atomic reference swap
+        circuitBreaker = newState;
         // Update failure count metric even if state doesn't change
         updateCircuitBreakerMetrics();
     }
@@ -1317,9 +1314,10 @@ async function fetchWithAuth<T>(
             // This prevents memory exhaustion from unexpectedly large responses
             if (!contentLength) {
                 const text = await response.text();
-                if (text.length > MAX_RESPONSE_SIZE_BYTES) {
+                const byteSize = new Blob([text]).size;
+                if (byteSize > MAX_RESPONSE_SIZE_BYTES) {
                     apiLogger.warn('Response size exceeds maximum allowed (streaming check)', {
-                        actualSize: text.length,
+                        actualSize: byteSize,
                         maxAllowed: MAX_RESPONSE_SIZE_BYTES,
                     });
                     apiTimer.end();
@@ -1465,10 +1463,28 @@ export const Api = {
      * @returns List of users.
      */
     async fetchUsers(workspaceId: string): Promise<User[]> {
-        const { data } = await fetchWithAuth<User[]>(
-            `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/users`
-        );
-        return data || [];
+        const allUsers: User[] = [];
+        let page = 1;
+        const pageSize = PAGE_SIZE;
+
+        while (true) {
+            const { data } = await fetchWithAuth<User[]>(
+                `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/users?page=${page}&page-size=${pageSize}`
+            );
+            const users = Array.isArray(data) ? data : [];
+            allUsers.push(...users);
+
+            if (users.length < pageSize) break;
+            page++;
+
+            // Safety limit to prevent infinite loops
+            if (page > HARD_MAX_PAGES_LIMIT) {
+                apiLogger.warn('Reached page limit for user fetch', { page, totalUsers: allUsers.length });
+                break;
+            }
+        }
+
+        return allUsers;
     },
 
     /**
@@ -1740,8 +1756,8 @@ export const Api = {
                             : resolvedHourlyRate
                         : 0,
                     // Stryker restore all
-                    // Stryker disable next-line LogicalOperator: || fallback to original costRate is intentional
-                    costRate: resolvedCostRate || e.costRate,
+                    // Stryker disable next-line LogicalOperator: ?? fallback to original costRate is intentional
+                    costRate: resolvedCostRate ?? resolveRateValue(e.costRate),
                     amounts: normalizedAmounts,
                     tags: e.tags || [],
                 };
@@ -1880,30 +1896,54 @@ export const Api = {
     ): Promise<ApiResponse<RawTimeOffResponse | TimeOffRequest[]>> {
         // Use POST endpoint for time-off requests to filter by specific users and status
         const url = `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/time-off/requests`;
-        const body = {
-            page: 1,
-            pageSize: 200,
-            users: userIds,
-            statuses: ['APPROVED'],
-            start: startDate,
-            end: endDate,
-        };
+        const pageSize = 200;
+        const allRequests: TimeOffRequest[] = [];
+        let page = 1;
 
         // Stryker disable next-line ConditionalExpression: Explicit undefined check preserves 0 retries option
         const maxRetries = options.maxRetries !== undefined ? options.maxRetries : 2;
-        const { data, failed, status } = await fetchWithAuth<
-            RawTimeOffResponse | TimeOffRequest[]
-        >(
-            url,
-            {
-                method: 'POST',
-                body: JSON.stringify(body),
-                ...options,
-            },
-            maxRetries
-        );
 
-        return { data, failed, status };
+        while (true) {
+            const body = {
+                page,
+                pageSize,
+                users: userIds,
+                statuses: ['APPROVED'],
+                start: startDate,
+                end: endDate,
+            };
+
+            const { data, failed, status } = await fetchWithAuth<
+                RawTimeOffResponse | TimeOffRequest[]
+            >(
+                url,
+                {
+                    method: 'POST',
+                    body: JSON.stringify(body),
+                    ...options,
+                },
+                maxRetries
+            );
+
+            if (failed || !data) {
+                return { data, failed, status };
+            }
+
+            // Extract requests from response (handles both response formats)
+            const rawData = data as RawTimeOffResponse;
+            const requests = rawData.requests || rawData.timeOffRequests || (Array.isArray(data) ? data as TimeOffRequest[] : []);
+            allRequests.push(...requests);
+
+            if (requests.length < pageSize) break;
+            page++;
+
+            if (page > HARD_MAX_PAGES_LIMIT) {
+                apiLogger.warn('Reached page limit for time-off requests', { page, total: allRequests.length });
+                break;
+            }
+        }
+
+        return { data: { requests: allRequests } as RawTimeOffResponse, failed: false, status: 200 };
     },
 
     /**
@@ -1948,22 +1988,26 @@ export const Api = {
 
         if (failedUserIds.length > 0 && failedCount > 0) {
             apiLogger.info('Retrying failed profile fetches', { count: failedUserIds.length });
-            const retryPromises = failedUserIds.map(async (userId) => {
-                const { data, failed } = await this.fetchUserProfile(
-                    workspaceId,
-                    userId,
-                    options
-                );
-                return { userId, data, failed };
-            });
-            const retryResults = await Promise.all(retryPromises);
             let retrySuccessCount = 0;
-            retryResults.forEach(({ userId, data, failed }) => {
-                if (!failed && data) {
-                    results.set(userId, data);
-                    retrySuccessCount++;
-                }
-            });
+            // Batch retries using same BATCH_SIZE as initial fetch
+            for (let i = 0; i < failedUserIds.length; i += BATCH_SIZE) {
+                const retryBatch = failedUserIds.slice(i, i + BATCH_SIZE);
+                const retryPromises = retryBatch.map(async (userId) => {
+                    const { data, failed } = await this.fetchUserProfile(
+                        workspaceId,
+                        userId,
+                        options
+                    );
+                    return { userId, data, failed };
+                });
+                const retryResults = await Promise.all(retryPromises);
+                retryResults.forEach(({ userId, data, failed }) => {
+                    if (!failed && data) {
+                        results.set(userId, data);
+                        retrySuccessCount++;
+                    }
+                });
+            }
             // Adjust failed count based on retry successes
             failedCount = failedCount - retrySuccessCount;
         }

@@ -46,6 +46,7 @@ import {
 } from './metrics.js';
 import { getCircuitBreakerState } from './api.js';
 import { getCSPReportStats } from './csp-reporter.js';
+import { escapeHtml } from './utils.js';
 
 const logger = createLogger('PerfDash');
 
@@ -171,6 +172,7 @@ const defaultConfig: DashboardConfig = {
 let config: DashboardConfig = { ...defaultConfig };
 let updateInterval: ReturnType<typeof setInterval> | null = null;
 let overlayElement: HTMLElement | null = null;
+let keyboardListenerAdded = false;
 let startTime = Date.now();
 
 // ============================================================================
@@ -439,7 +441,7 @@ function updateOverlay(report: PerformanceReport): void {
     }
 
     const alertsHtml = report.alerts.length > 0
-        ? report.alerts.map(a => `<div style="color: ${a.type === 'critical' ? '#f00' : '#ff0'}">⚠ ${a.message}</div>`).join('')
+        ? report.alerts.map(a => `<div style="color: ${a.type === 'critical' ? '#f00' : '#ff0'}">⚠ ${escapeHtml(a.message)}</div>`).join('')
         : '<div style="color: #0f0">No alerts</div>';
 
     overlayElement.innerHTML = `
@@ -516,12 +518,15 @@ export function initPerformanceDashboard(customConfig?: Partial<DashboardConfig>
         unrefIntervalIfSupported(updateInterval);
     }
 
-    // Add keyboard shortcut for overlay toggle
-    document.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && e.shiftKey && e.key === 'P') {
-            toggleOverlay();
-        }
-    });
+    // Add keyboard shortcut for overlay toggle (guarded to prevent duplicate listeners)
+    if (!keyboardListenerAdded) {
+        keyboardListenerAdded = true;
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                toggleOverlay();
+            }
+        });
+    }
 
     logger.debug('Performance dashboard initialized', {
         mode: config.mode,

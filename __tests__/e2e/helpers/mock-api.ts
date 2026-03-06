@@ -268,8 +268,8 @@ export async function setupApiMocks(page: Page, options: {
     const holidaysFailure: ApiFailureMode = shouldFailHolidays === true ? 'server_error' : shouldFailHolidays;
     const timeOffFailure: ApiFailureMode = shouldFailTimeOff === true ? 'server_error' : shouldFailTimeOff;
 
-    // Mock users endpoint
-    await page.route('**/v1/workspaces/*/users', async (route: Route) => {
+    // Mock users endpoint (** suffix matches pagination query params)
+    await page.route('**/v1/workspaces/*/users**', async (route: Route) => {
         if (await fulfillWithFailure(route, usersFailure)) return;
         await route.fulfill({
             status: 200,
@@ -310,8 +310,8 @@ export async function setupApiMocks(page: Page, options: {
         });
     });
 
-    // Mock time-off endpoint
-    await page.route('**/v1/workspaces/*/time-off/requests', async (route: Route) => {
+    // Mock time-off endpoint (** suffix matches pagination query params)
+    await page.route('**/v1/workspaces/*/time-off/requests**', async (route: Route) => {
         if (await fulfillWithFailure(route, timeOffFailure)) return;
         await route.fulfill({
             status: 200,

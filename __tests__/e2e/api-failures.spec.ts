@@ -173,7 +173,7 @@ test.describe('API Failure Handling', () => {
 
         // This tests that the app can recover - first call fails, subsequent calls succeed
         let callCount = 0;
-        await page.route('**/v1/workspaces/*/users', async (route) => {
+        await page.route('**/v1/workspaces/*/users**', async (route) => {
             callCount++;
             if (callCount === 1) {
                 // First call fails

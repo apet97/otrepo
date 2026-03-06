@@ -236,7 +236,7 @@ test.describe('XSS Prevention', () => {
             });
 
             // Setup other mocks
-            await page.route('**/v1/workspaces/*/users', async (route) => {
+            await page.route('**/v1/workspaces/*/users**', async (route) => {
                 await route.fulfill({
                     status: 200,
                     contentType: 'application/json',
@@ -260,7 +260,7 @@ test.describe('XSS Prevention', () => {
                 });
             });
 
-            await page.route('**/v1/workspaces/*/time-off/requests', async (route) => {
+            await page.route('**/v1/workspaces/*/time-off/requests**', async (route) => {
                 await route.fulfill({
                     status: 200,
                     contentType: 'application/json',

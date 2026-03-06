@@ -12,10 +12,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 
-// Mock console methods
-jest.spyOn(console, 'log').mockImplementation(() => {});
-jest.spyOn(console, 'warn').mockImplementation(() => {});
-
 // Mock the metrics module
 jest.unstable_mockModule('../../js/metrics.js', () => ({
     getHistogramStats: jest.fn(() => null),
@@ -72,6 +68,10 @@ let getCircuitBreakerState;
 beforeEach(async () => {
     jest.resetModules();
     jest.useFakeTimers({ advanceTimers: true });
+
+    // Mock console methods in beforeEach (restored by global standardAfterEach)
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
 
     // Re-import with fresh mocks
     const metrics = await import('../../js/metrics.js');

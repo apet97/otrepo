@@ -107,6 +107,8 @@ async function openKeyDatabase(): Promise<IDBDatabase> {
             };
 
             request.onerror = () => {
+                // Reset cached promise so subsequent calls can retry
+                keyDatabasePromise = null;
                 reject(request.error || new Error('Failed to open IndexedDB'));
             };
         });

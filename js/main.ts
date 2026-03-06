@@ -159,6 +159,7 @@ import {
     base64urlDecode,
     setCanonicalTimeZone,
     isValidTimeZone,
+    validateInputBounds,
 } from './utils.js';
 import { initErrorReporting, reportError } from './error-reporting.js';
 import { SENTRY_DSN } from './constants.js';
@@ -1442,9 +1443,10 @@ export function bindConfigEvents(): void {
         dailyEl.addEventListener(
             'input',
             debounce((e: Event) => {
-                // Parse float; default to 8 if invalid
-                store.calcParams.dailyThreshold =
-                    parseFloat((e.target as HTMLInputElement).value) || 8;
+                // Parse and validate bounds (use NaN check to preserve 0)
+                const parsed = parseFloat((e.target as HTMLInputElement).value);
+                const validated = validateInputBounds('dailyThreshold', Number.isNaN(parsed) ? 8 : parsed);
+                store.calcParams.dailyThreshold = validated.value;
                 store.saveConfig();
                 if (store.rawEntries) runCalculation();
             }, 300)
@@ -1458,8 +1460,9 @@ export function bindConfigEvents(): void {
         weeklyEl.addEventListener(
             'input',
             debounce((e: Event) => {
-                store.calcParams.weeklyThreshold =
-                    parseFloat((e.target as HTMLInputElement).value) || 40;
+                const parsedWeekly = parseFloat((e.target as HTMLInputElement).value);
+                const validatedWeekly = validateInputBounds('weeklyThreshold', Number.isNaN(parsedWeekly) ? 40 : parsedWeekly);
+                store.calcParams.weeklyThreshold = validatedWeekly.value;
                 store.saveConfig();
                 if (store.rawEntries) runCalculation();
             }, 300)
@@ -1474,9 +1477,10 @@ export function bindConfigEvents(): void {
         multEl.addEventListener(
             'input',
             debounce((e: Event) => {
-                // Parse float; default to 1.5 if invalid
-                store.calcParams.overtimeMultiplier =
-                    parseFloat((e.target as HTMLInputElement).value) || 1.5;
+                // Parse and validate bounds (use NaN check to preserve 0)
+                const parsedMult = parseFloat((e.target as HTMLInputElement).value);
+                const validatedMult = validateInputBounds('overtimeMultiplier', Number.isNaN(parsedMult) ? 1.5 : parsedMult);
+                store.calcParams.overtimeMultiplier = validatedMult.value;
                 store.saveConfig();
                 if (store.rawEntries) runCalculation();
             }, 300)
@@ -1524,12 +1528,13 @@ export function bindConfigEvents(): void {
         'configTier2Threshold'
     ) as HTMLInputElement | null;
     if (tier2ThresholdEl) {
-        tier2ThresholdEl.value = String(store.calcParams.tier2ThresholdHours || 0);
+        tier2ThresholdEl.value = String(store.calcParams.tier2ThresholdHours ?? 0);
         tier2ThresholdEl.addEventListener(
             'input',
             debounce((e: Event) => {
-                store.calcParams.tier2ThresholdHours =
-                    parseFloat((e.target as HTMLInputElement).value) || 0;
+                const parsedT2Thresh = parseFloat((e.target as HTMLInputElement).value);
+                const validatedT2Thresh = validateInputBounds('tier2ThresholdHours', Number.isNaN(parsedT2Thresh) ? 0 : parsedT2Thresh);
+                store.calcParams.tier2ThresholdHours = validatedT2Thresh.value;
                 store.saveConfig();
                 if (store.rawEntries) runCalculation();
             }, 300)
@@ -1541,12 +1546,13 @@ export function bindConfigEvents(): void {
         'configTier2Multiplier'
     ) as HTMLInputElement | null;
     if (tier2MultiplierEl) {
-        tier2MultiplierEl.value = String(store.calcParams.tier2Multiplier || 2.0);
+        tier2MultiplierEl.value = String(store.calcParams.tier2Multiplier ?? 2.0);
         tier2MultiplierEl.addEventListener(
             'input',
             debounce((e: Event) => {
-                store.calcParams.tier2Multiplier =
-                    parseFloat((e.target as HTMLInputElement).value) || 2.0;
+                const parsedT2Mult = parseFloat((e.target as HTMLInputElement).value);
+                const validatedT2Mult = validateInputBounds('tier2Multiplier', Number.isNaN(parsedT2Mult) ? 2.0 : parsedT2Mult);
+                store.calcParams.tier2Multiplier = validatedT2Mult.value;
                 store.saveConfig();
                 if (store.rawEntries) runCalculation();
             }, 300)
@@ -1626,8 +1632,8 @@ export function bindConfigEvents(): void {
     const setDateRange = (start: Date, end: Date) => {
         const startEl = document.getElementById('startDate') as HTMLInputElement | null;
         const endEl = document.getElementById('endDate') as HTMLInputElement | null;
-        if (startEl) startEl.value = IsoUtils.toISODate(start);
-        if (endEl) endEl.value = IsoUtils.toISODate(end);
+        if (startEl) startEl.value = IsoUtils.toDateKey(start);
+        if (endEl) endEl.value = IsoUtils.toDateKey(end);
     };
 
     const startInput = document.getElementById('startDate') as HTMLInputElement | null;
@@ -2270,7 +2276,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
 
         // Show the tab navigation (Summary/Detailed) now that we have results
         const tabNavCard = document.getElementById('tabNavCard');
-        if (tabNavCard) tabNavCard.style.display = 'block';
+        if (tabNavCard) tabNavCard.style.display = 'flex';
 
         // Enable Export button (disabled until we have analysis results)
         const exportBtn = document.getElementById('exportBtn') as HTMLButtonElement | null;

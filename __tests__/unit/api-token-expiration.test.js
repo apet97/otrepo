@@ -59,14 +59,12 @@ describe('checkTokenExpiration base64url decoding', () => {
     expect(result.expiresIn).toBeLessThanOrEqual(0);
   });
 
-  it('flags non-JWT tokens as expired', () => {
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  it('allows non-JWT tokens (cannot check expiration)', () => {
     store.token = 'not-a-jwt';
 
     const result = checkTokenExpiration();
 
-    expect(result.isExpired).toBe(true);
-    expect(warnSpy).toHaveBeenCalled();
-    warnSpy.mockRestore();
+    // Non-JWT tokens cannot have expiration checked, so allow the request
+    expect(result.isExpired).toBe(false);
   });
 });

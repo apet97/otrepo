@@ -8,6 +8,7 @@
  */
 
 import { jest } from '@jest/globals';
+import { resetMockIdCounter } from './mock-data.js';
 
 /**
  * Standard afterEach cleanup function.
@@ -52,6 +53,9 @@ export function standardAfterEach() {
   } catch {
     // Ignore if timers weren't mocked
   }
+
+  // Reset mock ID counter for deterministic IDs
+  resetMockIdCounter();
 }
 
 /**

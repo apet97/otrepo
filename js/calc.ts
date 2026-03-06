@@ -228,7 +228,7 @@ function extractRate(rateField: number | { amount?: number } | null | undefined)
     // Handle new object format ({amount: number})
     /* Stryker disable next-line all */
     else if (typeof rateField === 'object' && 'amount' in rateField) {
-        rate = rateField.amount || 0; // Fallback to 0 if amount is null/undefined
+        rate = rateField.amount ?? 0; // Fallback to 0 if amount is null/undefined
     }
     // Fallback for unknown formats stays at 0
 
@@ -873,7 +873,7 @@ function getEffectiveTier2Multiplier(userId: string, dateKey: string, store: Cal
     }
 
     // Priority 4: Global default (default 2.0 = double-time)
-    return store.calcParams.tier2Multiplier || 2.0;
+    return store.calcParams.tier2Multiplier ?? 2.0;
 }
 
 // ============================================================================

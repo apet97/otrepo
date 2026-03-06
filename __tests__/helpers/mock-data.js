@@ -9,6 +9,14 @@ const nextMockId = () => {
   return mockIdCounter;
 };
 
+/**
+ * Resets the mock ID counter to 0.
+ * Call in afterEach to ensure deterministic IDs across tests.
+ */
+export function resetMockIdCounter() {
+  mockIdCounter = 0;
+}
+
 // ============================================================================
 // Core Mock Data Generators
 // ============================================================================

@@ -117,6 +117,16 @@ export function bindEvents(callbacks: UICallbacks): () => void {
         detailedContainer.addEventListener('click', detailedClickHandler);
     }
 
+    // Close popover on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && detailedContainer) {
+            const openPopover = detailedContainer.querySelector('.status-info-popover:not(.hidden)');
+            if (openPopover) {
+                openPopover.classList.add('hidden');
+            }
+        }
+    });
+
     // Generate button
     const generateBtn = document.getElementById('generateBtn');
     const generateClickHandler = () => callbacks.onGenerate();

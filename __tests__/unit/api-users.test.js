@@ -50,7 +50,7 @@ describe('API Users', () => {
       const result = await promise;
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.clockify.me/v1/workspaces/workspace_123/users',
+        expect.stringContaining('/workspaces/workspace_123/users'),
         expect.any(Object)
       );
       expect(result).toEqual(mockUsers);

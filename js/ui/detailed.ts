@@ -170,7 +170,7 @@ export function renderDetailedTable(
         const el = chip as HTMLElement;
         const isActive = el.dataset.filter === currentFilter;
         el.classList.toggle('active', isActive);
-        el.setAttribute('aria-selected', String(isActive));
+        el.setAttribute('aria-checked', String(isActive));
     });
 
     if (allEntries.length === 0) {

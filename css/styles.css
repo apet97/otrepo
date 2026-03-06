@@ -16,9 +16,15 @@
   /* Border */
   --border-color: #e2e8f0;
 
+  /* Semantic background aliases */
+  --bg-secondary: #f1f5f9;
+  --bg-tertiary: #e2e8f0;
+  --bg-primary: #ffffff;
+
   /* Brand/accent colors */
   --accent: #0369a1;
   --color-accent: #0369a1;
+  --primary-color: #0369a1;
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
@@ -445,9 +451,15 @@ body {
   /* Border - dark theme */
   --border-color: #404060;
 
+  /* Semantic background aliases - dark theme */
+  --bg-secondary: #1e1e38;
+  --bg-tertiary: #2a2a4a;
+  --bg-primary: #252542;
+
   /* Accent colors - dark theme (brighter for visibility) */
   --accent: #38bdf8;
   --color-accent: #38bdf8;
+  --primary-color: #38bdf8;
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #f87171;

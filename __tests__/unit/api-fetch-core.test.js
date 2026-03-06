@@ -431,15 +431,16 @@ describe('API Fetch Core - Mutation Killing Tests', () => {
       expect(headers['X-Addon-Token']).not.toBe('');
     });
 
-    it('should use store.token || "" when token is null', async () => {
+    it('should block request when token is null (expired)', async () => {
       store.token = null;
 
       fetch.mockResolvedValueOnce(mockResponse([]));
 
-      await Api.fetchUsers('workspace_123');
+      const result = await Api.fetchUsers('workspace_123');
 
-      const headers = fetch.mock.calls[0][1].headers;
-      expect(headers['X-Addon-Token']).toBe('');
+      // With no token, checkTokenExpiration returns isExpired: true, blocking the request
+      expect(fetch).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
     });
   });
 

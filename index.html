@@ -196,11 +196,11 @@
 
       <!-- Detailed Card: per-entry view with filters -->
       <div class="card hidden" id="detailedCard" data-testid="detailed-card" role="tabpanel" aria-labelledby="tab-detailed">
-        <div class="filter-chips" id="detailedFilters" role="group" aria-label="Filter entries">
-          <button type="button" class="chip active" data-filter="all">All Entries</button>
-          <button type="button" class="chip" data-filter="holiday">Holidays Only</button>
-          <button type="button" class="chip" data-filter="offday">Off-days Only</button>
-          <button type="button" class="chip" data-filter="billable">Billable Only</button>
+        <div class="filter-chips" id="detailedFilters" role="radiogroup" aria-label="Filter entries">
+          <button type="button" class="chip active" data-filter="all" role="radio" aria-checked="true">All Entries</button>
+          <button type="button" class="chip" data-filter="holiday" role="radio" aria-checked="false">Holidays Only</button>
+          <button type="button" class="chip" data-filter="offday" role="radio" aria-checked="false">Off-days Only</button>
+          <button type="button" class="chip" data-filter="billable" role="radio" aria-checked="false">Billable Only</button>
         </div>
         <div id="detailedTableContainer"></div>
       </div>
