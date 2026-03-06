@@ -244,9 +244,8 @@ describe('API Holidays - Batch Processing Mutations', () => {
       expect(callCount).toBe(5);
     });
 
-    it('should slice holidays batch correctly (not use full array)', async () => {
-      // Kill: users.slice(i, i + BATCH_SIZE) → users in fetchAllHolidays
-      // With 7 users: original makes 7 calls, mutation would make 14 (7+7)
+    it('should propagate identical holidays from sample to remaining users', async () => {
+      // With 7 users: 5 sampled, all identical → 2 propagated (5 calls, not 7)
       const users = generateMockUsers(7);
       let callCount = 0;
 
@@ -255,11 +254,51 @@ describe('API Holidays - Batch Processing Mutations', () => {
         return Promise.resolve(mockResponse([]));
       });
 
-      await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31');
+      const results = await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31');
 
-      // Original: 5 users in batch 1, 2 users in batch 2 = 7 calls
-      // Mutation: 7 users in batch 1, 7 users in batch 2 = 14 calls
+      // 5 sample calls, 2 propagated (identical empty results)
+      expect(callCount).toBe(5);
+      // All 7 users should have results
+      expect(results.size).toBe(7);
+    });
+
+    it('should fallback to full fetch when sample results differ', async () => {
+      const users = generateMockUsers(7);
+      let callCount = 0;
+
+      fetch.mockImplementation(() => {
+        callCount++;
+        // Return different holidays for each call to prevent dedup
+        return Promise.resolve(mockResponse([
+          { name: `Holiday ${callCount}`, datePeriod: { startDate: '2025-01-01T00:00:00Z' } }
+        ]));
+      });
+
+      const results = await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31');
+
+      // 5 sample + 2 remaining = 7 calls (fallback to full fetch)
       expect(callCount).toBe(7);
+      expect(results.size).toBe(7);
+    });
+
+    it('should fallback when a sample fetch fails', async () => {
+      const users = generateMockUsers(7);
+      let callCount = 0;
+
+      fetch.mockImplementation(() => {
+        callCount++;
+        // Fail the 3rd sample request
+        if (callCount === 3) {
+          return Promise.resolve(mockResponse(null, { ok: false, status: 500 }));
+        }
+        return Promise.resolve(mockResponse([]));
+      });
+
+      const results = await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31');
+
+      // 5 sample + 2 remaining = 7 calls (fallback due to failure)
+      expect(callCount).toBe(7);
+      expect(store.apiStatus.holidaysFailed).toBe(1);
     });
   });
 

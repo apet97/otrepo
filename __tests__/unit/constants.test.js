@@ -4,7 +4,7 @@
 
 import { jest, describe, it, expect, afterEach } from '@jest/globals';
 
-import { STORAGE_KEYS, CONSTANTS, SUMMARY_COLUMNS, WEEKDAYS } from '../../js/constants.js';
+import { STORAGE_KEYS, CONSTANTS, SUMMARY_COLUMNS, WEEKDAYS, DEFAULT_MAX_PAGES, HARD_MAX_PAGES_LIMIT, MAX_ENTRIES_LIMIT } from '../../js/constants.js';
 import { standardAfterEach } from '../helpers/setup.js';
 
 describe('Constants Module', () => {
@@ -35,6 +35,24 @@ describe('Constants Module', () => {
         expect(typeof column.label).toBe('string');
         expect(column.label.length).toBeGreaterThan(0);
       });
+    });
+  });
+
+  describe('Pagination limits', () => {
+    it('DEFAULT_MAX_PAGES supports 1500-user workspaces (2500 pages × 200 = 500K entries)', () => {
+      expect(DEFAULT_MAX_PAGES).toBe(2500);
+    });
+
+    it('HARD_MAX_PAGES_LIMIT is absolute safety ceiling (5000 pages × 200 = 1M entries)', () => {
+      expect(HARD_MAX_PAGES_LIMIT).toBe(5000);
+    });
+
+    it('MAX_ENTRIES_LIMIT prevents unbounded memory growth', () => {
+      expect(MAX_ENTRIES_LIMIT).toBe(1_000_000);
+    });
+
+    it('DEFAULT_MAX_PAGES is less than HARD_MAX_PAGES_LIMIT', () => {
+      expect(DEFAULT_MAX_PAGES).toBeLessThan(HARD_MAX_PAGES_LIMIT);
     });
   });
 

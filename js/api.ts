@@ -141,7 +141,7 @@
 
 import { store } from './state.js';
 import { IsoUtils, classifyError, base64urlDecode } from './utils.js';
-import { DEFAULT_MAX_PAGES, HARD_MAX_PAGES_LIMIT } from './constants.js';
+import { DEFAULT_MAX_PAGES, HARD_MAX_PAGES_LIMIT, MAX_ENTRIES_LIMIT } from './constants.js';
 import { createLogger } from './logger.js';
 import { startTimer, incrementCounter, setGauge, MetricNames } from './metrics.js';
 import type {
@@ -356,7 +356,7 @@ export function sanitizeUrlForLogging(url: string): string {
  * - API Courtesy: Lower = less server load
  * - Error Risk: Higher = more requests fail if one fails
  */
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 20;
 
 /**
  * Number of items to fetch per page for paginated endpoints.
@@ -1765,6 +1765,16 @@ export const Api = {
 
             allEntries.push(...transformed);
 
+            // Entry count safety valve — prevent unbounded memory growth
+            if (allEntries.length >= MAX_ENTRIES_LIMIT) {
+                apiLogger.warn('Entry count safety limit reached', {
+                    limit: MAX_ENTRIES_LIMIT,
+                    entriesFetched: allEntries.length,
+                });
+                store.ui.paginationTruncated = true;
+                hasMore = false;
+            }
+
             // Check for abort signal after transformation
             if (options.signal?.aborted) {
                 apiLogger.info('Pagination aborted after transformation', { page, entriesFetched: allEntries.length });
@@ -1979,6 +1989,9 @@ export const Api = {
                 if (failed) failedCount++;
                 if (data) results.set(userId, data);
             });
+            if (options.onProgress) {
+                options.onProgress(results.size, 'profiles');
+            }
         }
 
         // Retry failed profile fetches once
@@ -2041,38 +2054,88 @@ export const Api = {
         // Stryker disable next-line StringLiteral: API contract requires exact ISO format
         const endIso = `${endDate}T23:59:59.999Z`;
 
-        // Stryker disable next-line EqualityOperator: i <= users.length is functionally equivalent (empty batch is no-op)
-        for (let i = 0; i < users.length; i += BATCH_SIZE) {
-            const batch = users.slice(i, i + BATCH_SIZE);
-            const batchPromises = batch.map(async (user) => {
-                const { data, failed } = await this.fetchHolidays(
-                    workspaceId,
-                    user.id,
-                    startIso,
-                    endIso,
-                    options
-                );
-                return { userId: user.id, data, failed };
-            });
-            const batchResults = await Promise.all(batchPromises);
-            batchResults.forEach(({ userId, data, failed }) => {
-                if (failed) failedCount++;
-                if (data) {
-                    /* istanbul ignore next -- defensive: handle missing fields from API */
-                    results.set(
-                        userId,
-                        data.map((h) => ({
-                            name: h.name || '',
-                            datePeriod: {
-                                startDate: h.datePeriod?.startDate || '',
-                                // Fallback endDate to startDate if missing (single-day holiday)
-                                endDate: h.datePeriod?.endDate || h.datePeriod?.startDate || '',
-                            },
-                            projectId: h.projectId,
-                        }))
-                    );
+        if (users.length === 0) {
+            store.apiStatus.holidaysFailed = 0;
+            return results;
+        }
+
+        // Helper to normalize holiday data from API response
+        const normalizeHolidays = (data: RawHoliday[]): Holiday[] =>
+            data.map((h) => ({
+                name: h.name || '',
+                datePeriod: {
+                    startDate: h.datePeriod?.startDate || '',
+                    endDate: h.datePeriod?.endDate || h.datePeriod?.startDate || '',
+                },
+                projectId: h.projectId,
+            }));
+
+        // === OPTIMIZATION: Sample-and-propagate for workspace-wide holidays ===
+        const SAMPLE_SIZE = Math.min(5, users.length);
+        const sampleUsers = users.slice(0, SAMPLE_SIZE);
+
+        // Fetch sample concurrently
+        const samplePromises = sampleUsers.map(async (user) => {
+            const { data, failed } = await this.fetchHolidays(
+                workspaceId, user.id, startIso, endIso, options
+            );
+            return { userId: user.id, data, failed };
+        });
+        const sampleResults = await Promise.all(samplePromises);
+
+        let allSampleIdentical = true;
+        let referenceHolidays: Holiday[] | null = null;
+
+        for (const result of sampleResults) {
+            if (result.failed) {
+                failedCount++;
+                allSampleIdentical = false;
+            } else {
+                const normalized = result.data ? normalizeHolidays(result.data) : [];
+                results.set(result.userId, normalized);
+
+                if (referenceHolidays === null) {
+                    referenceHolidays = normalized;
+                } else if (JSON.stringify(normalized) !== JSON.stringify(referenceHolidays)) {
+                    allSampleIdentical = false;
                 }
+            }
+        }
+
+        // If all samples are identical, propagate to remaining users
+        if (allSampleIdentical && referenceHolidays !== null && users.length > SAMPLE_SIZE) {
+            apiLogger.info('Holiday deduplication: propagating identical holidays', {
+                sampleSize: SAMPLE_SIZE,
+                propagatedTo: users.length - SAMPLE_SIZE,
             });
+            for (let i = SAMPLE_SIZE; i < users.length; i++) {
+                results.set(users[i].id, [...referenceHolidays]);
+            }
+            if (options.onProgress) {
+                options.onProgress(results.size, 'holidays');
+            }
+        } else {
+            // Fall back to full per-user fetch for remaining users
+            const remainingUsers = users.slice(SAMPLE_SIZE);
+            for (let i = 0; i < remainingUsers.length; i += BATCH_SIZE) {
+                const batch = remainingUsers.slice(i, i + BATCH_SIZE);
+                const batchPromises = batch.map(async (user) => {
+                    const { data, failed } = await this.fetchHolidays(
+                        workspaceId, user.id, startIso, endIso, options
+                    );
+                    return { userId: user.id, data, failed };
+                });
+                const batchResults = await Promise.all(batchPromises);
+                batchResults.forEach(({ userId, data, failed }) => {
+                    if (failed) failedCount++;
+                    if (data) {
+                        results.set(userId, normalizeHolidays(data));
+                    }
+                });
+                if (options.onProgress) {
+                    options.onProgress(results.size, 'holidays');
+                }
+            }
         }
 
         store.apiStatus.holidaysFailed = failedCount;

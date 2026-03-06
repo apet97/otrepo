@@ -416,20 +416,20 @@ describe('Token Bucket Rate Limiter', () => {
     /**
      * SPECIFICATION: Batch Processing
      *
-     * The API processes user-specific requests in batches of BATCH_SIZE (5):
+     * The API processes user-specific requests in batches of BATCH_SIZE (20):
      * - Profiles, holidays, and time-off are fetched per-user
      * - Batching prevents overwhelming the API
      * - Each batch runs concurrently, batches run sequentially
      */
 
-    it('BATCH_SIZE should be 5 (concurrent user requests)', async () => {
+    it('BATCH_SIZE should be 20 (concurrent user requests)', async () => {
       /**
-       * SPECIFICATION: Batch Size = 5
+       * SPECIFICATION: Batch Size = 20
        *
-       * Why 5?
-       * - Balance between performance and API courtesy
-       * - Prevents overwhelming the API
-       * - Reduces error risk from concurrent failures
+       * Why 20?
+       * - 4x faster than BATCH_SIZE=5 for 1500-user workspaces
+       * - Rate limiter (50 req/sec) handles overflow
+       * - Within token bucket burst capacity
        */
       fetch.mockResolvedValue(createMockResponse({ workCapacityInHours: 8, daysOfWeek: ['MONDAY', 'TUESDAY'] }));
 
@@ -445,7 +445,7 @@ describe('Token Bucket Rate Limiter', () => {
       // All users should have profiles
       expect(result.size).toBe(10);
 
-      // Requests should have been made - 10 users in batches of 5 = 2 batches
+      // Requests should have been made - 10 users in 1 batch (BATCH_SIZE=20)
       expect(fetch.mock.calls.length).toBe(10);
     });
   });

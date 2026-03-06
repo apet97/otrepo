@@ -92,6 +92,8 @@ describe('API Entries', () => {
 
     it('should stop at max pages', async () => {
       const users = generateMockUsers(1);
+      // Set explicit maxPages to keep test tractable
+      store.config = { maxPages: 50 };
 
       fetch.mockImplementation(() =>
         Promise.resolve(mockResponse(Array(500).fill({ id: 'entry' })))
@@ -1698,8 +1700,8 @@ describe('API Entries - Loop Boundary Mutations', () => {
       await jest.runAllTimersAsync();
       await promise1;
 
-      // 5 users / BATCH_SIZE(5) = 1 batch
-      // If mutation changed i < to i <=, would process 2 batches
+      // 5 users / BATCH_SIZE(20) = 1 batch
+      // If mutation changed i < to i <=, would process extra iterations
       expect(batchCount).toBe(5);  // 5 parallel fetches (one per user in the batch)
     });
 
@@ -1722,9 +1724,8 @@ describe('API Entries - Loop Boundary Mutations', () => {
       await jest.runAllTimersAsync();
       const result = await promise;
 
-      // 6 users with BATCH_SIZE=5 means:
-      // - First batch: 5 users
-      // - Second batch: 1 user
+      // 6 users with BATCH_SIZE=20 means:
+      // - Single batch: 6 users
       // Total: 6 fetch calls
       expect(fetch).toHaveBeenCalledTimes(6);
     });

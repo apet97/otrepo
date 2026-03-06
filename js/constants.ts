@@ -176,16 +176,23 @@ export const INPUT_BOUNDS: Record<string, { min: number; max: number; descriptio
 
 /**
  * Default maximum number of pages to fetch from the Reports API.
- * Each page contains up to 200 entries, so 50 pages = 10,000 entries max.
+ * Each page contains up to 200 entries, so 2500 pages = 500,000 entries max.
  * Set to 0 for unlimited (will fetch until API returns empty).
  */
-export const DEFAULT_MAX_PAGES = 50;
+export const DEFAULT_MAX_PAGES = 2500;
 
 /**
  * Hard limit on pages to prevent runaway fetches.
  * This is the absolute maximum regardless of configuration.
+ * 5000 pages × 200 entries = 1,000,000 entries absolute ceiling.
  */
-export const HARD_MAX_PAGES_LIMIT = 500;
+export const HARD_MAX_PAGES_LIMIT = 5000;
+
+/**
+ * Absolute maximum number of entries regardless of page count.
+ * Safety valve to prevent unbounded memory growth.
+ */
+export const MAX_ENTRIES_LIMIT = 1_000_000;
 
 /**
  * Summary column definition

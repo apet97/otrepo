@@ -2081,6 +2081,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                     name: 'profiles',
                     promise: Api.fetchAllProfiles(store.claims.workspaceId, missingUsers, {
                         signal,
+                        onProgress: (fetched, phase) => UI.updateLoadingProgress(fetched, phase),
                     }).then((profiles) => {
                         // Guard: Discard stale responses from cancelled requests
                         // This prevents race conditions where a slow response from an aborted
@@ -2124,7 +2125,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                         missingUsers,
                         startDate,
                         endDate,
-                        { signal }
+                        { signal, onProgress: (fetched, phase) => UI.updateLoadingProgress(fetched, phase) }
                     ).then((holidays) => {
                         // Guard: Discard stale responses from cancelled requests
                         // This prevents race conditions where a slow response from an aborted

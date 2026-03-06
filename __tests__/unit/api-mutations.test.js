@@ -70,7 +70,7 @@ describe('API Module - Mutation Test Coverage', () => {
 
     it('should correctly slice batch at BATCH_SIZE boundary', async () => {
       // Kill: users.slice(i, i + BATCH_SIZE) → users
-      // With 7 users (> BATCH_SIZE=5), if slice returns full array,
+      // With 7 users (< BATCH_SIZE=20), if slice returns full array,
       // each batch would process all 7 instead of the correct subset
       const users = generateMockUsers(7);
       const fetchCalls = [];
@@ -136,7 +136,7 @@ describe('API Module - Mutation Test Coverage', () => {
       await Api.fetchAllProfiles('workspace_123', users);
 
       // Should process 5 in first batch, 1 in second batch
-      expect(batchSizes.length).toBe(6); // 5 + 1 calls
+      expect(batchSizes.length).toBe(6); // 6 calls total (all in 1 batch with BATCH_SIZE=20)
     });
 
     it('should not process extra iteration for fetchEntries batch loop', async () => {
@@ -175,9 +175,8 @@ describe('API Module - Mutation Test Coverage', () => {
       expect(callCount).toBe(5);
     });
 
-    it('should slice holidays batch correctly (not use full array)', async () => {
-      // Kill: users.slice(i, i + BATCH_SIZE) → users in fetchAllHolidays
-      // With 7 users: original makes 7 calls, mutation would make 14 (7+7)
+    it('should propagate identical holidays and fallback on different results', async () => {
+      // With 7 users returning identical results: 5 sampled, 2 propagated = 5 calls
       const users = generateMockUsers(7);
       let callCount = 0;
 
@@ -186,11 +185,11 @@ describe('API Module - Mutation Test Coverage', () => {
         return Promise.resolve(mockResponse([]));
       });
 
-      await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31');
+      const results = await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31');
 
-      // Original: 5 users in batch 1, 2 users in batch 2 = 7 calls
-      // Mutation: 7 users in batch 1, 7 users in batch 2 = 14 calls
-      expect(callCount).toBe(7);
+      // Dedup: 5 sample calls, 2 propagated (identical empty results)
+      expect(callCount).toBe(5);
+      expect(results.size).toBe(7);
     });
   });
 
@@ -3920,7 +3919,7 @@ describe('API Module - Mutation Test Coverage', () => {
 
     it('should process users in batches with correct slice boundaries', async () => {
       // Kill: i < users.length → i <= users.length and users.slice mutations
-      const users = generateMockUsers(7); // More than BATCH_SIZE (5) but less than 10
+      const users = generateMockUsers(7); // Less than BATCH_SIZE (20)
 
       fetch.mockImplementation(() =>
         Promise.resolve(mockResponse([{ id: 'entry', userId: 'user_0' }]))
@@ -5050,7 +5049,7 @@ describe('API Users - Batch Processing Mutations', () => {
   describe('Loop Boundary Edge Cases - Kill Mutants', () => {
     it('should correctly slice batch at BATCH_SIZE boundary', async () => {
       // Kill: users.slice(i, i + BATCH_SIZE) → users
-      // With 7 users (> BATCH_SIZE=5), if slice returns full array,
+      // With 7 users (< BATCH_SIZE=20), if slice returns full array,
       // each batch would process all 7 instead of the correct subset
       const users = generateMockUsers(7);
       const fetchCalls = [];
@@ -5115,7 +5114,7 @@ describe('API Users - Batch Processing Mutations', () => {
       await Api.fetchAllProfiles('workspace_123', users);
 
       // Should process 5 in first batch, 1 in second batch
-      expect(batchSizes.length).toBe(6); // 5 + 1 calls
+      expect(batchSizes.length).toBe(6); // 6 calls total (all in 1 batch with BATCH_SIZE=20)
     });
   });
 
@@ -5313,7 +5312,7 @@ describe('API Users - Batch Processing Mutations', () => {
     it('kills ?? removal mutation: undefined maxPages uses DEFAULT_MAX_PAGES', async () => {
       // Kill: store.config.maxPages ?? DEFAULT_MAX_PAGES → store.config.maxPages
       // Setup: store.config.maxPages = undefined
-      // Expected: Uses DEFAULT_MAX_PAGES (50), not undefined
+      // Expected: Uses DEFAULT_MAX_PAGES (2500), not undefined
       // If ?? removed, undefined would cause errors or wrong behavior
       store.config = { maxPages: undefined };
 
@@ -5333,7 +5332,7 @@ describe('API Users - Batch Processing Mutations', () => {
         '2025-01-02T00:00:00Z'
       );
 
-      // Should work without errors (uses default 50)
+      // Should work without errors (uses default 2500)
       expect(results).toHaveLength(1);
       expect(store.ui.paginationTruncated).toBe(false);
     });
@@ -5341,7 +5340,7 @@ describe('API Users - Batch Processing Mutations', () => {
     it('kills === 0 vs !== 0 mutation: maxPages=0 enables unlimited mode', async () => {
       // Kill: configuredMaxPages === 0 → configuredMaxPages !== 0
       // Setup: store.config.maxPages = 0
-      // Expected: effectiveMaxPages = HARD_MAX_PAGES_LIMIT (500)
+      // Expected: effectiveMaxPages = HARD_MAX_PAGES_LIMIT (5000)
       // If === becomes !==, non-zero would trigger unlimited instead
       store.config = { maxPages: 0 }; // 0 means unlimited (use HARD_MAX_PAGES_LIMIT)
 
@@ -5380,14 +5379,14 @@ describe('API Users - Batch Processing Mutations', () => {
 
     it('kills min vs max mutation: configuredMaxPages capped at HARD_MAX_PAGES_LIMIT', async () => {
       // Kill: Math.min(configuredMaxPages, HARD_MAX_PAGES_LIMIT) → Math.max(...)
-      // Setup: store.config.maxPages = 1000 (> HARD_MAX_PAGES_LIMIT of 500)
-      // Expected: effectiveMaxPages = 500 (capped)
-      // If min becomes max, 1000 would be used
+      // Setup: store.config.maxPages = 10000 (> HARD_MAX_PAGES_LIMIT of 5000)
+      // Expected: effectiveMaxPages = 5000 (capped)
+      // If min becomes max, 10000 would be used
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-      store.config = { maxPages: 1000 }; // Exceeds HARD_MAX_PAGES_LIMIT (500)
+      store.config = { maxPages: 10000 }; // Exceeds HARD_MAX_PAGES_LIMIT (5000)
 
-      // We need to reach page 501 to trigger truncation if limit is 500
-      // But if mutation changes min→max, limit would be 1000 and no truncation at 501
+      // We need to reach page 5001 to trigger truncation if limit is 5000
+      // But if mutation changes min→max, limit would be 10000 and no truncation at 5001
       // For practical testing, we'll use maxPages: 2 and verify it caps at 2
       store.config = { maxPages: 2 };
 
@@ -5407,7 +5406,7 @@ describe('API Users - Batch Processing Mutations', () => {
         '2025-01-31T23:59:59Z'
       );
 
-      // Should stop at page 2 (effectiveMaxPages = min(2, 500) = 2)
+      // Should stop at page 2 (effectiveMaxPages = min(2, 5000) = 2)
       expect(fetch).toHaveBeenCalledTimes(2);
       expect(results).toHaveLength(400); // 200 * 2
       expect(store.ui.paginationTruncated).toBe(true);

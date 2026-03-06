@@ -29,7 +29,7 @@ global.crypto = webcrypto;
  * Note: Phases 3-5 can run in parallel (Promise.all) after phase 2 completes.
  *
  * @see js/main.ts - handleGenerateReport() orchestration
- * @see js/api.ts - Batch processing with BATCH_SIZE (5)
+ * @see js/api.ts - Batch processing with BATCH_SIZE (20)
  * @see docs/guide.md - Data flow
  */
 
@@ -325,14 +325,14 @@ describe('Data Flow Orchestration', () => {
       expect(fetchCalls.length).toBeGreaterThan(0);
     });
 
-    it('should batch user fetches in groups of BATCH_SIZE (5)', async () => {
+    it('should batch user fetches in groups of BATCH_SIZE (20)', async () => {
       /**
-       * SPECIFICATION: Batch Size = 5
+       * SPECIFICATION: Batch Size = 20
        *
        * User-specific fetches (profiles, holidays) are batched:
-       * - 5 concurrent requests per batch
+       * - 20 concurrent requests per batch
        * - Batches run sequentially
-       * - Prevents overwhelming the API
+       * - Rate limiter handles overflow
        */
       let fetchCount = 0;
 
@@ -344,7 +344,7 @@ describe('Data Flow Orchestration', () => {
       const { Api, resetRateLimiter } = await import('../../js/api.js');
       resetRateLimiter();
 
-      // Create 12 users (should be 3 batches: 5 + 5 + 2)
+      // Create 12 users (should be 1 batch with BATCH_SIZE=20)
       const users = Array(12).fill(null).map((_, i) => ({ id: `user_${i}`, name: `User ${i}` }));
 
       await jest.runAllTimersAsync();
@@ -665,17 +665,17 @@ describe('Orchestration - Constants Documentation', () => {
    * This section documents orchestration constants for specification purposes.
    */
 
-  it('BATCH_SIZE should be 5 for concurrent user fetches', () => {
+  it('BATCH_SIZE should be 20 for concurrent user fetches', () => {
     /**
      * SPECIFICATION: Batch Size
      *
-     * Why 5?
-     * - Performance: 5 concurrent requests is reasonably fast
-     * - API Courtesy: Doesn't overwhelm Clockify servers
-     * - Error Isolation: If one fails, only affects small batch
+     * Why 20?
+     * - Performance: 4x faster than 5 for 1500-user workspaces
+     * - Rate limiter (50 req/sec) handles overflow
+     * - Within token bucket burst capacity
      */
-    const BATCH_SIZE = 5;
-    expect(BATCH_SIZE).toBe(5);
+    const BATCH_SIZE = 20;
+    expect(BATCH_SIZE).toBe(20);
   });
 
   it('REPORT_CACHE_TTL should be 5 minutes (300000ms)', () => {
