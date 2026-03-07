@@ -1,0 +1,124 @@
+
+  You are auditing OTPLUS — a TypeScript Clockify sidebar add-on for overtime calculation —
+  to determine readiness for 1500-user admin workspaces. WRITE RALPHTODO.MD WITH FINDINGS
+
+  ## Project Location
+  /Users/15x/Documents/addons-me/otrepo
+
+  ## Context
+  A 17-task optimization pass just completed (see `.claude/ralph-progress.md` and
+  `OPTIMIZATION_PLAN.md`). The codebase has been scaled from ~50 users to target 1500 users.
+  Your job is to find remaining blockers, edge cases, and issues that would prevent this from
+   working correctly at scale.
+
+  ## What You Must Do
+
+  Read before analyzing. Understand the full architecture before making claims. Check
+  `.claude/ralph-progress.md` for what was recently changed.
+
+  ### 1. Calculation Correctness at Scale
+  - **File:** `js/calc.ts` — Read the entire `calculateAnalysis` function
+  - Verify the daily/weekly/combined overtime algorithm handles 1500 users × 30 days
+  correctly
+  - Check for floating-point accumulation errors across large entry counts (500K entries)
+  - Verify memoization caches (`parseIsoDuration`, `classifyEntryForOvertime`) don't leak
+  between users
+  - Verify `clearMemoizationCaches()` is called at the right time
+  - Check the pre-sorted day context (`sortedEntries`) — are there edge cases where entries
+  span midnight or have identical timestamps?
+  - Verify tier2 overtime accumulator resets correctly per user
+  - Check if `getEntryDurationHours` can return NaN or Infinity and what happens downstream
+  - Verify the weekly bucket boundary logic (`getWeekKey`) — does it handle year boundaries,
+  leap years, DST?
+
+  ### 2. API & Data Pipeline at Scale
+  - **Files:** `js/api.ts`, `js/state.ts`, `js/streaming.ts`
+  - With `DEFAULT_MAX_PAGES=2500` and `PAGE_SIZE=200`, that's 500K entries. Verify memory
+  doesn't explode
+  - Check `fetchDetailedReport` pagination — what happens if Clockify returns inconsistent
+  `nextPageToken`?
+  - Check `fetchAllProfiles` with 1500 users at `BATCH_SIZE=20` — that's 75 batches. What's
+  the total wall time? Can it timeout?
+  - Check `fetchAllHolidays` sample-based dedup — does it work if different users genuinely
+  have different holidays (multi-country workspace)?
+  - Verify `fetchAllTimeOff` pagination handles 1500 users' time-off requests
+  - Check the `AbortController` cancellation — are there race conditions with 75 concurrent
+  profile batches being cancelled mid-flight?
+  - Check IndexedDB cache (`otplus_cache`) — what's the storage limit? Can 500K entries fit?
+  What happens when quota is exceeded?
+  - Verify `setCachedReport` fire-and-forget (`void store.setCachedReport(...)`) — what if it
+   fails silently and next load uses stale/missing cache?
+
+  ### 3. Memory & Performance Analysis
+  - **Files:** `js/calc.ts`, `js/main.ts`, `js/export.ts`
+  - Estimate memory footprint: 500K TimeEntry objects × average object size
+  - Check for memory leaks: are old `store.rawEntries` and `store.analysisResults` properly
+  GC'd when new reports are generated?
+  - Check the worker pool — with `poolSize = Math.min(hardwareConcurrency, 4)` and
+  `taskTimeout: 120000`, is 120s enough for 500K entries?
+  - The worker pool increased size but sharding was NOT implemented. With poolSize=4 but only
+   1 task dispatched, are 3 workers idle? Is this just wasted memory?
+  - Check `downloadCsv` chunking — 1500 users with 30 days = potentially 45K rows. Does
+  `CSV_CHUNK_SIZE=50` (users) yield fast enough?
+  - Check `buildRowsForUsers` — does it create intermediate arrays that spike memory?
+  - Verify the `splitIntoBatches` integration doesn't create unnecessary intermediate arrays
+  vs the old manual loop
+
+  ### 4. UI/UX at Scale
+  - **Files:** `js/ui/summary.ts`, `js/ui/overrides.ts`, `js/ui/detailed.ts`,
+  `js/ui/index.ts`, `index.html`
+  - Summary table pagination: with 1500 users, default `pageSize=50` means 30 pages. Is the
+  pagination UI usable? Are there page number limits?
+  - Detailed table: check `detailedPageSize=50`. With 1500 users × 30 days × multiple entries
+   per day, is this paginating correctly?
+  - Overrides panel: search + pagination with 1500 users. Does debounce (250ms) feel
+  responsive? Does filtering by name scale?
+  - Check if any UI rendering does `innerHTML +=` in a loop (O(n²) DOM thrashing)
+  - Check if the summary table re-renders ALL rows on page change or just the visible page
+  - Check the loading progress UI — does `updateLoadingProgress` show meaningful progress for
+   a 2-minute load?
+  - Check if the "Generate Report" button is disabled during loading to prevent
+  double-submission
+  - Check the date range warning (`showLargeDateRangeWarning`) — is the threshold appropriate
+   for 1500 users?
+  - What happens if a user clicks "Generate" again while 75 profile batches are in-flight?
+  Does abort work cleanly?
+
+  ### 5. Error Handling at Scale
+  - **Files:** `js/main.ts`, `js/api.ts`, `js/error-reporting.ts`
+  - What happens if 50 out of 1500 profile fetches fail? Does the UI show partial results or
+  error out?
+  - Check circuit breaker behavior — with 75 batches of 20, if batch 3 triggers the circuit
+  breaker, what happens to batches 4-75?
+  - Rate limiter: with `BATCH_SIZE=20` concurrent requests, does this exceed Clockify's API
+  rate limits?
+  - What error message does the user see if IndexedDB quota is exceeded?
+  - What happens if the worker pool fails to initialize (no Worker support)? Does the
+  main-thread fallback handle 500K entries?
+
+  ### 6. Security at Scale
+  - **File:** `js/export.ts`, `js/crypto.ts`, `js/state.ts`
+  - CSV export with 1500 users — is formula injection sanitization applied to all fields?
+  - With 500K entries cached in IndexedDB, is the data encrypted? Is there workspace scoping?
+  - Check if `localStorage` encryption (`js/crypto.ts`) is used for the IDB cache or only for
+   settings
+
+  ## Output Format
+
+  Produce a structured report with:
+
+  1. **BLOCKERS** — Issues that WILL break at 1500 users (must fix before shipping)
+  2. **HIGH RISK** — Issues likely to cause problems (should fix)
+  3. **MEDIUM RISK** — Issues that degrade experience but don't break functionality
+  4. **LOW RISK** — Minor issues, nice-to-fix
+  5. **VERIFIED OK** — Things you checked that are fine (with brief explanation)
+
+  For each finding, include:
+  - File and line number
+  - What the issue is
+  - Why it matters at 1500-user scale
+  - Suggested fix (brief)
+
+  Do NOT propose fixes or write code. This is analysis only. Be specific — cite line numbers
+  and actual values. If you're unsure about something, say so and explain what you'd need to
+  verify.
