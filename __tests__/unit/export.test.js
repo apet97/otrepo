@@ -133,7 +133,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).toContain('Date');
         expect(csvContent).toContain('User');
         expect(csvContent).toContain('Description');
@@ -168,7 +168,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         const lines = csvContent.split('\n');
         const headerLine = lines[0];
         const headers = headerLine.split(',');
@@ -250,7 +250,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Strip UTF-8 BOM if present (added for Excel compatibility)
         const csvWithoutBom = csvContent.replace(/^\uFEFF/, '');
         const lines = csvWithoutBom.split('\n');
@@ -307,7 +307,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Strip UTF-8 BOM if present (added for Excel compatibility)
         const csvWithoutBom = csvContent.replace(/^\uFEFF/, '');
         const lines = csvWithoutBom.split('\n');
@@ -356,7 +356,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
 
         // Should escape the = sign to prevent CSV injection (e.g. by prepending ')
         // We expect '=SUM(A1:A10) to be present (quoted due to comma or just text)
@@ -400,7 +400,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
 
         // Should double quotes for CSV
         expect(csvContent).toContain('"Work on ""Project Alpha"""');
@@ -440,7 +440,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
 
         // Should show empty description as empty field - capacity is now correctly read from meta
         // CSV format: Date,User,Description,EffectiveCapacityHours,...
@@ -495,7 +495,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
 
         // Should have both entries on same date
         const dateMatches = (csvContent.match(/2025-01-15/g) || []).length;
@@ -540,7 +540,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
 
         // Should have capacity (8h)
         expect(csvContent).toContain('8h');
@@ -582,7 +582,7 @@ describe('Export Module', () => {
       ];
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).toContain('2024-12-31');
         expect(csvContent).not.toContain('2025-01-01,User 1');
       });
@@ -683,7 +683,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).toContain("'+1234567890");
       });
 
@@ -721,7 +721,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).toContain("'-123");
       });
 
@@ -759,7 +759,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).toContain("'@mention");
       });
 
@@ -797,7 +797,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).toContain('indented');
         expect(csvContent).not.toContain('\tindented');
       });
@@ -836,7 +836,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).toContain('line');
         expect(csvContent).not.toContain('\rline');
       });
@@ -877,7 +877,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Newlines are stripped before CSV escaping
         expect(csvContent).toContain('Line 1Line 2');
         expect(csvContent).not.toContain('\nLine 2');
@@ -917,7 +917,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Should be quoted because it contains comma
         expect(csvContent).toContain('"A, B, and C"');
       });
@@ -958,7 +958,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Non-billable entries should have 0h in BillableWorkedHours and values in NonBillableWorkedHours
         expect(csvContent).toContain('Non-billable work');
         // Should have rows with "No" for isHoliday
@@ -999,7 +999,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Should still produce valid CSV when duration is missing
         expect(csvContent).toContain('Entry without duration');
         // With no duration, TotalHours=0h and TotalHoursDecimal=0.00
@@ -1044,7 +1044,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Strip UTF-8 BOM if present (added for Excel compatibility)
         const csvWithoutBom = csvContent.replace(/^\uFEFF/, '');
         // Regular day should have "No" for isHoliday column
@@ -1094,7 +1094,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Strip UTF-8 BOM if present (added for Excel compatibility)
         const csvWithoutBom = csvContent.replace(/^\uFEFF/, '');
         // Regular day should have "No" for isTimeOff column
@@ -1149,7 +1149,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Holiday day should have "Yes" for isHoliday column
         expect(csvContent).toContain('Yes');
         expect(csvContent).toContain('Test Holiday');
@@ -1194,7 +1194,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Time-off day should have "Yes" for isTimeOff column
         const lines = csvContent.split('\n');
         const dataLine = lines.find(l => l.includes('Work during time off'));
@@ -1237,7 +1237,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Should handle missing start gracefully
         expect(csvContent).toContain('Entry without start');
         // Date should be empty when start is null
@@ -1282,7 +1282,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Should handle null capacity with 0 fallback
         expect(csvContent).toContain('Entry with null capacity day');
         const lines = csvContent.split('\n');
@@ -1327,7 +1327,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Should handle missing meta gracefully
         expect(csvContent).toContain('Entry with missing meta');
       });
@@ -1379,7 +1379,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Should contain rate information in some form
         // Rate is stored in cents (7500), displayed as $75
         expect(csvContent).toContain('User 1');
@@ -1419,7 +1419,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Should have OvertimeHours column with non-zero values
         expect(csvContent).toContain('OvertimeHours');
         // Should contain the 2h overtime row
@@ -1505,7 +1505,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Strip UTF-8 BOM if present (added for Excel compatibility)
         const csvWithoutBom = csvContent.replace(/^\uFEFF/, '');
         const lines = csvWithoutBom.split('\n');
@@ -1541,7 +1541,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Strip UTF-8 BOM if present (added for Excel compatibility)
         const csvWithoutBom = csvContent.replace(/^\uFEFF/, '');
         const lines = csvWithoutBom.split('\n');
@@ -1571,7 +1571,7 @@ describe('Export Module', () => {
       createElementSpy.mockReturnValue(mockLink);
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Strip UTF-8 BOM if present (added for Excel compatibility)
         const csvWithoutBom = csvContent.replace(/^\uFEFF/, '');
         const lines = csvWithoutBom.split('\n');
@@ -1693,7 +1693,7 @@ describe('CSV Format Specification', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -1722,7 +1722,7 @@ describe('CSV Format Specification', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -1744,7 +1744,7 @@ describe('CSV Format Specification', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -1771,7 +1771,7 @@ describe('CSV Format Specification', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -1801,7 +1801,7 @@ describe('CSV Format Specification', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -1832,7 +1832,7 @@ describe('CSV Format Specification', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -1891,7 +1891,7 @@ describe('CSV Format Specification', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -1995,7 +1995,7 @@ describe('CSV Formula Injection Prevention - Extended', () => {
 
         let csvContent = '';
         global.Blob = jest.fn((content) => {
-          csvContent = content[0];
+          csvContent = content.join('');
           return {};
         });
 
@@ -2020,7 +2020,7 @@ describe('CSV Formula Injection Prevention - Extended', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -2105,7 +2105,7 @@ describe('Complex CSV Data Handling', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -2144,7 +2144,7 @@ describe('Complex CSV Data Handling', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -2183,7 +2183,7 @@ describe('Complex CSV Data Handling', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -2225,7 +2225,7 @@ describe('Complex CSV Data Handling', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -2265,7 +2265,7 @@ describe('Complex CSV Data Handling', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -2307,7 +2307,7 @@ describe('Complex CSV Data Handling', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -2346,7 +2346,7 @@ describe('Complex CSV Data Handling', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -2385,7 +2385,7 @@ describe('Complex CSV Data Handling', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -2424,7 +2424,7 @@ describe('Complex CSV Data Handling', () => {
 
       let csvContent = '';
       global.Blob = jest.fn((content) => {
-        csvContent = content[0];
+        csvContent = content.join('');
         return {};
       });
 
@@ -2436,5 +2436,133 @@ describe('Complex CSV Data Handling', () => {
       // The content should be properly escaped/sanitized
       expect(csvContent.length).toBeGreaterThan(0);
     });
+  });
+});
+
+describe('Streaming CSV Export (Phase 4.1)', () => {
+  afterEach(() => {
+    standardAfterEach();
+  });
+
+  function makeAnalysis(userCount) {
+    return Array.from({ length: userCount }, (_, i) => ({
+      userId: `user_${i}`,
+      userName: `User ${i}`,
+      days: new Map([
+        [`2024-01-15`, {
+          entries: [{
+            description: `Task ${i}`,
+            timeInterval: { start: '2024-01-15T09:00:00Z', duration: 'PT8H' },
+            analysis: { regular: 8, overtime: 0, isBillable: true }
+          }],
+          meta: { capacity: 8, isHoliday: false, isNonWorking: false, isTimeOff: false }
+        }]
+      ]),
+      totals: { total: 8 }
+    }));
+  }
+
+  it('downloadCsv returns a Promise', () => {
+    const createElementSpy = jest.spyOn(document, 'createElement');
+    const mockLink = { setAttribute: jest.fn(), click: jest.fn(), style: {} };
+    createElementSpy.mockReturnValue(mockLink);
+    jest.spyOn(document.body, 'appendChild').mockImplementation(() => {});
+    jest.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+
+    const result = downloadCsv(makeAnalysis(1));
+    expect(result).toBeInstanceOf(Promise);
+  });
+
+  it('produces correct CSV for single-chunk dataset (< 50 users)', async () => {
+    const createElementSpy = jest.spyOn(document, 'createElement');
+    const mockLink = { setAttribute: jest.fn(), click: jest.fn(), style: {} };
+    createElementSpy.mockReturnValue(mockLink);
+    jest.spyOn(document.body, 'appendChild').mockImplementation(() => {});
+    jest.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+
+    let blobParts = null;
+    global.Blob = jest.fn((parts) => {
+      blobParts = parts;
+      return {};
+    });
+
+    await downloadCsv(makeAnalysis(3), 'test.csv');
+
+    // Single chunk + header = 2 parts (BOM+header, rows)
+    expect(blobParts).toHaveLength(2);
+    const fullCsv = blobParts.join('');
+    expect(fullCsv).toContain('User 0');
+    expect(fullCsv).toContain('User 1');
+    expect(fullCsv).toContain('User 2');
+  });
+
+  it('produces correct CSV for multi-chunk dataset (> 50 users)', async () => {
+    const createElementSpy = jest.spyOn(document, 'createElement');
+    const mockLink = { setAttribute: jest.fn(), click: jest.fn(), style: {} };
+    createElementSpy.mockReturnValue(mockLink);
+    jest.spyOn(document.body, 'appendChild').mockImplementation(() => {});
+    jest.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+
+    let blobParts = null;
+    global.Blob = jest.fn((parts) => {
+      blobParts = parts;
+      return {};
+    });
+
+    await downloadCsv(makeAnalysis(120), 'test.csv');
+
+    // 120 users / 50 = 3 chunks + 1 header = 4 parts
+    expect(blobParts).toHaveLength(4);
+    const fullCsv = blobParts.join('');
+    expect(fullCsv).toContain('User 0');
+    expect(fullCsv).toContain('User 49');
+    expect(fullCsv).toContain('User 50');
+    expect(fullCsv).toContain('User 119');
+    // Verify header is present
+    expect(fullCsv).toContain('Date,User,Description');
+  });
+
+  it('handles empty analysis array', async () => {
+    const createElementSpy = jest.spyOn(document, 'createElement');
+    const mockLink = { setAttribute: jest.fn(), click: jest.fn(), style: {} };
+    createElementSpy.mockReturnValue(mockLink);
+    jest.spyOn(document.body, 'appendChild').mockImplementation(() => {});
+    jest.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+
+    let blobParts = null;
+    global.Blob = jest.fn((parts) => {
+      blobParts = parts;
+      return {};
+    });
+
+    await downloadCsv([], 'empty.csv');
+
+    // Only header chunk
+    expect(blobParts).toHaveLength(1);
+    const fullCsv = blobParts.join('');
+    expect(fullCsv).toContain('Date,User,Description');
+  });
+
+  it('CSV output matches between single-chunk and multi-chunk paths', async () => {
+    const createElementSpy = jest.spyOn(document, 'createElement');
+    const mockLink = { setAttribute: jest.fn(), click: jest.fn(), style: {} };
+    createElementSpy.mockReturnValue(mockLink);
+    jest.spyOn(document.body, 'appendChild').mockImplementation(() => {});
+    jest.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+
+    // Generate the same 10 users
+    const analysis = makeAnalysis(10);
+
+    let csvContent = '';
+    global.Blob = jest.fn((parts) => {
+      csvContent = parts.join('');
+      return {};
+    });
+
+    await downloadCsv(analysis, 'test.csv');
+
+    // Should have all 10 users' data lines (+ header)
+    const lines = csvContent.split('\n').filter(l => l.trim());
+    expect(lines.length).toBe(11); // 1 header + 10 data rows
   });
 });

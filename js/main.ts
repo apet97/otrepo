@@ -1604,9 +1604,9 @@ export function bindConfigEvents(): void {
     // CSV includes formula injection protection (see export.ts)
     const exportBtn = document.getElementById('exportBtn');
     if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
+        exportBtn.addEventListener('click', async () => {
             if (store.analysisResults) {
-                downloadCsv(store.analysisResults);
+                await downloadCsv(store.analysisResults);
             }
         });
     }
@@ -1766,6 +1766,7 @@ export function bindConfigEvents(): void {
         groupBySelect.addEventListener('change', (e) => {
             // Update UI state with new grouping preference
             store.ui.summaryGroupBy = (e.target as HTMLSelectElement).value as typeof store.ui.summaryGroupBy;
+            store.ui.summaryPage = 1; // Reset to page 1 on groupBy change
             // Persist grouping preference to localStorage
             store.saveUIState();
             // Re-render summary table with new grouping
@@ -2014,7 +2015,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
 
     if (cacheKey && !forceRefresh) {
         // Check if we have a cached report for this date range
-        cachedEntries = store.getCachedReport(cacheKey);
+        cachedEntries = await store.getCachedReport(cacheKey);
         if (cachedEntries) {
             // Found cached data; ask user if they want to use it
             const cacheData = sessionStorage.getItem('otplus_report_cache');
@@ -2232,7 +2233,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
 
         // Cache the fetched entries for potential reuse
         if (!useCachedData && cacheKey && entries && entries.length > 0) {
-            store.setCachedReport(cacheKey, entries);
+            void store.setCachedReport(cacheKey, entries);
         }
 
         // Store raw entries in application state for subsequent calculations and exports
@@ -2387,7 +2388,7 @@ async function initCalculationWorker(): Promise<boolean> {
     try {
         calculationWorkerPool = await createWorkerPool<WorkerPayload, WorkerResult>(
             'js/calc.worker.js',
-            { poolSize: 1, maxQueueSize: 10, taskTimeout: 60000, autoRestart: true }
+            { poolSize: Math.min(navigator.hardwareConcurrency || 4, 4), maxQueueSize: 10, taskTimeout: 120000, autoRestart: true }
         );
         store.diagnostics = {
             ...store.diagnostics,

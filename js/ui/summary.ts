@@ -613,7 +613,7 @@ function renderSummaryRow(
 }
 
 /**
- * Renders the Summary Table (per-user rows).
+ * Renders the Summary Table (per-user rows) with pagination.
  *
  * @param users - List of user analysis objects.
  */
@@ -629,6 +629,14 @@ export function renderSummaryTable(users: UserAnalysis[]): void {
     // Compute grouped rows
     const rows = computeSummaryRows(users, groupBy);
 
+    // Pagination
+    /* istanbul ignore next -- defensive: pageSize and page are always set by UI */
+    const pageSize = store.ui.summaryPageSize || 100;
+    const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+    const page = Math.min(Math.max(1, store.ui.summaryPage || 1), totalPages);
+    const startIdx = (page - 1) * pageSize;
+    const pageRows = rows.slice(startIdx, startIdx + pageSize);
+
     // Update header
     const thead = document.getElementById('summaryHeaderRow');
     if (thead) {
@@ -636,10 +644,8 @@ export function renderSummaryTable(users: UserAnalysis[]): void {
     }
 
     // Render rows using a document fragment to minimize DOM thrashing
-    // PERFORMANCE: Building the entire table body in a fragment before appending
-    // prevents browser reflow/repaint for each row, critical for large datasets.
     const fragment = document.createDocumentFragment();
-    for (const row of rows) {
+    for (const row of pageRows) {
         const tr = document.createElement('tr');
         tr.innerHTML = renderSummaryRow(row, groupBy, expanded, showBillable, showBoth, showAmounts);
         fragment.appendChild(tr);
@@ -650,6 +656,24 @@ export function renderSummaryTable(users: UserAnalysis[]): void {
         Elements.summaryTableBody.innerHTML = '';
         Elements.summaryTableBody.appendChild(fragment);
     }
+
+    // Render pagination controls
+    const paginationContainer = document.getElementById('summaryPaginationControls');
+    if (paginationContainer) {
+        if (totalPages > 1) {
+            paginationContainer.innerHTML = `
+              <div class="pagination-controls" style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:16px;">
+                <button class="btn-secondary btn-sm summary-page-btn" ${page === 1 ? 'disabled' : ''} data-summary-page="1" title="First page">First</button>
+                <button class="btn-secondary btn-sm summary-page-btn" ${page === 1 ? 'disabled' : ''} data-summary-page="${page - 1}" title="Previous page">Prev</button>
+                <span style="font-size:12px; color:var(--text-secondary);">Page ${page} of ${totalPages} (${rows.length} rows)</span>
+                <button class="btn-secondary btn-sm summary-page-btn" ${page === totalPages ? 'disabled' : ''} data-summary-page="${page + 1}" title="Next page">Next</button>
+                <button class="btn-secondary btn-sm summary-page-btn" ${page === totalPages ? 'disabled' : ''} data-summary-page="${totalPages}" title="Last page">Last</button>
+              </div>`;
+        } else {
+            paginationContainer.innerHTML = '';
+        }
+    }
+
     /* istanbul ignore else -- Elements are always initialized when this function is called */
     if (Elements.resultsContainer) {
         Elements.resultsContainer.classList.remove('hidden');

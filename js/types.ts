@@ -557,6 +557,16 @@ export interface UIState {
     detailedPageSize: number;
     /** Active detailed filter */
     activeDetailedFilter: 'all' | 'holiday' | 'offday' | 'billable';
+    /** Current summary table page */
+    summaryPage: number;
+    /** Summary table page size */
+    summaryPageSize: number;
+    /** Current overrides page */
+    overridesPage: number;
+    /** Overrides page size */
+    overridesPageSize: number;
+    /** Overrides search term */
+    overridesSearch: string;
     /** Whether cost rates are available */
     hasCostRates: boolean;
     /** Whether any amounts/rates are available */

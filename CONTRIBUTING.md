@@ -40,10 +40,11 @@ If a suite fails with timing-sensitive behavior:
 If `npm test` fails only on micro-benchmark thresholds in `__tests__/performance/*.test.js`, treat it as environment-sensitive until a targeted repro confirms a deterministic regression.
 Use `RUN_PERF_TESTS=true npm run test:perf` when you need strict local perf assertions.
 
-## Current Baseline (2026-02-22, post-CI)
+## Current Baseline (2026-03-07, post-optimization)
 
-- `npm test`: 84 suites / 2984 tests
-- `npm run test:e2e`: 237 tests
+- `npm test`: 93 suites / 3287 tests
+- `npm run test:e2e`: 236/237 (transient flakes, pass on repro)
+- Coverage: 84.84% stmts / 80.52% branches / 83.84% funcs / 85.23% lines
 
 ## Definition of Done
 

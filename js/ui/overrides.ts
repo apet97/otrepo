@@ -57,10 +57,36 @@ export function renderOverridesPage(): void {
         return;
     }
 
+    // Filter users by search term
+    const searchTerm = (store.ui.overridesSearch || '').toLowerCase().trim();
+    const filteredUsers = searchTerm
+        ? store.users.filter(u => u.name.toLowerCase().includes(searchTerm))
+        : store.users;
+
+    // Pagination
+    /* istanbul ignore next -- defensive: pageSize and page always set by UI */
+    const pageSize = store.ui.overridesPageSize || 50;
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+    const page = Math.min(Math.max(1, store.ui.overridesPage || 1), totalPages);
+    const startIdx = (page - 1) * pageSize;
+    const pageUsers = filteredUsers.slice(startIdx, startIdx + pageSize);
+
+    // Render search bar
+    const searchContainer = document.getElementById('overridesSearchContainer');
+    if (searchContainer) {
+        searchContainer.innerHTML = `
+          <input type="search" id="overridesSearchInput"
+                 class="override-search-input"
+                 placeholder="Search users..."
+                 value="${escapeHtml(store.ui.overridesSearch || '')}"
+                 aria-label="Search override users" />
+          <span class="search-result-count" style="font-size:12px; color:var(--text-secondary); margin-left:8px;">${filteredUsers.length} of ${store.users.length} users</span>`;
+    }
+
     const fragment = document.createDocumentFragment();
 
     // eslint-disable-next-line complexity -- Override card generation with many form fields and conditional states
-    store.users.forEach((user) => {
+    pageUsers.forEach((user) => {
         const override = store.getUserOverride(user.id);
         const mode = override.mode || 'global';
         const profile = store.profiles.get(user.id);
@@ -158,6 +184,23 @@ export function renderOverridesPage(): void {
 
     container.innerHTML = '';
     container.appendChild(fragment);
+
+    // Pagination controls
+    const paginationContainer = document.getElementById('overridesPaginationControls');
+    if (paginationContainer) {
+        if (totalPages > 1) {
+            paginationContainer.innerHTML = `
+              <div class="pagination-controls" style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:16px;">
+                <button class="btn-secondary btn-sm overrides-page-btn" ${page === 1 ? 'disabled' : ''} data-overrides-page="1">First</button>
+                <button class="btn-secondary btn-sm overrides-page-btn" ${page === 1 ? 'disabled' : ''} data-overrides-page="${page - 1}">Prev</button>
+                <span style="font-size:12px; color:var(--text-secondary);">Page ${page} of ${totalPages}</span>
+                <button class="btn-secondary btn-sm overrides-page-btn" ${page === totalPages ? 'disabled' : ''} data-overrides-page="${page + 1}">Next</button>
+                <button class="btn-secondary btn-sm overrides-page-btn" ${page === totalPages ? 'disabled' : ''} data-overrides-page="${totalPages}">Last</button>
+              </div>`;
+        } else {
+            paginationContainer.innerHTML = '';
+        }
+    }
 }
 
 /**

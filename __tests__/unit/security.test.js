@@ -97,7 +97,7 @@ describe('Security Testing Suite', () => {
           createElementSpy.mockReturnValue(mockLink);
 
           global.Blob = jest.fn((content) => {
-            const csvContent = content[0];
+            const csvContent = content.join('');
             if (isControlChar) {
               // Control characters should be stripped entirely
               expect(csvContent).not.toContain(`${char}SUM`);
@@ -135,7 +135,7 @@ describe('Security Testing Suite', () => {
       });
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // The leading " means it's not caught by formula injection check (starts with " not =)
         // But escapeCsv will quote it and double the internal quotes: """=SUM...
         // This is still safe because the cell starts with ", not =
@@ -166,7 +166,7 @@ describe('Security Testing Suite', () => {
       });
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Control characters stripped, formula still escaped
         expect(csvContent).toContain("'=SUM");
         expect(csvContent).not.toContain('\r\n=SUM');
@@ -198,7 +198,7 @@ describe('Security Testing Suite', () => {
       });
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Fullwidth equals should still be present but quoted due to special handling
         expect(csvContent).toBeDefined();
       });
@@ -227,7 +227,7 @@ describe('Security Testing Suite', () => {
       });
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).not.toContain('\u202E');
         expect(csvContent).not.toContain('\u202C');
       });
@@ -256,7 +256,7 @@ describe('Security Testing Suite', () => {
       });
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         // Should escape the leading =
         expect(csvContent).toContain("'=");
       });
@@ -287,7 +287,7 @@ describe('Security Testing Suite', () => {
       });
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).not.toContain('\x00');
       });
 
@@ -315,7 +315,7 @@ describe('Security Testing Suite', () => {
       });
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).not.toContain('\x00');
       });
 
@@ -354,7 +354,7 @@ describe('Security Testing Suite', () => {
         });
 
         global.Blob = jest.fn((content) => {
-          const csvContent = content[0];
+          const csvContent = content.join('');
           expect(csvContent).not.toContain(char);
         });
 
@@ -383,7 +383,7 @@ describe('Security Testing Suite', () => {
       });
 
       global.Blob = jest.fn((content) => {
-        const csvContent = content[0];
+        const csvContent = content.join('');
         expect(csvContent).not.toContain('\x07');
       });
 
@@ -728,7 +728,7 @@ describe('Security Testing Suite', () => {
 
       let capturedCsvContent = '';
       global.Blob = jest.fn((content) => {
-        capturedCsvContent = content[0];
+        capturedCsvContent = content.join('');
         return {};
       });
 
@@ -765,7 +765,7 @@ describe('Security Testing Suite', () => {
 
       let capturedCsvContent = '';
       global.Blob = jest.fn((content) => {
-        capturedCsvContent = content[0];
+        capturedCsvContent = content.join('');
         return {};
       });
 
@@ -801,7 +801,7 @@ describe('Security Testing Suite', () => {
 
       let capturedCsvContent = '';
       global.Blob = jest.fn((content) => {
-        capturedCsvContent = content[0];
+        capturedCsvContent = content.join('');
         return {};
       });
 
@@ -835,7 +835,7 @@ describe('Security Testing Suite', () => {
 
       let capturedCsvContent = '';
       global.Blob = jest.fn((content) => {
-        capturedCsvContent = content[0];
+        capturedCsvContent = content.join('');
         return {};
       });
 
@@ -877,7 +877,7 @@ describe('Security Testing Suite', () => {
 
       let capturedCsvContent = '';
       global.Blob = jest.fn((content) => {
-        capturedCsvContent = content[0];
+        capturedCsvContent = content.join('');
         return {};
       });
 

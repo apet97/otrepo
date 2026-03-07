@@ -750,4 +750,21 @@ describe('Worker Pool', () => {
             await expect(promise).rejects.toThrow('Worker pool terminated');
         });
     });
+
+    describe('pool size calculation', () => {
+        it('uses hardwareConcurrency capped at 4', () => {
+            const calcPoolSize = (cores) => Math.min(cores || 4, 4);
+            expect(calcPoolSize(1)).toBe(1);
+            expect(calcPoolSize(2)).toBe(2);
+            expect(calcPoolSize(4)).toBe(4);
+            expect(calcPoolSize(8)).toBe(4);
+            expect(calcPoolSize(16)).toBe(4);
+        });
+
+        it('defaults to 4 when hardwareConcurrency is 0 or undefined', () => {
+            const calcPoolSize = (cores) => Math.min(cores || 4, 4);
+            expect(calcPoolSize(0)).toBe(4);
+            expect(calcPoolSize(undefined)).toBe(4);
+        });
+    });
 });

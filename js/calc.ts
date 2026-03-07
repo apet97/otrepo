@@ -119,6 +119,7 @@ import {
     round,
     parseIsoDuration,
     classifyEntryForOvertime,
+    clearMemoizationCaches,
     getWeekKey,
     IsoUtils,
     type EntryClassification,
@@ -1525,6 +1526,9 @@ export function calculateAnalysis(
     store: CalcStore | Store,
     dateRange: DateRange | null
 ): UserAnalysis[] {
+    // Clear memoization caches at the start of each calculation to prevent stale data
+    clearMemoizationCaches();
+
     // === INITIALIZATION ===
     // Handle null entries gracefully - we still need to calculate expected capacity
     // for all users, even if they have no time entries in this period.
@@ -1673,6 +1677,7 @@ export function calculateAnalysis(
             string,
             {
                 entries: TimeEntry[];
+                sortedEntries: TimeEntry[];
                 meta: DayMeta;
                 baseCapacity: number;
                 effectiveCapacity: number;
@@ -1722,8 +1727,19 @@ export function calculateAnalysis(
                 isHolidayDay || isNonWorking || (isTimeOffDay && effectiveCapacity === 0);
             // Invariant: If effective capacity is 0, ALL work must be classified as overtime.
 
+            /* istanbul ignore next -- defensive: timeInterval.start is always present for valid entries */
+            /* Stryker disable all: Defensive fallback for null timeInterval (never triggered with valid entries) */
+            const sortedDayEntries = [...dayEntries].sort((a, b) => {
+                const aStart = a.timeInterval?.start;
+                const bStart = b.timeInterval?.start;
+                if (!aStart || !bStart) return 0;
+                return aStart.localeCompare(bStart);
+            });
+            /* Stryker restore all */
+
             dayContextByDate.set(dateKey, {
                 entries: dayEntries,
+                sortedEntries: sortedDayEntries,
                 meta: dayMeta,
                 baseCapacity,
                 effectiveCapacity,
@@ -1748,26 +1764,10 @@ export function calculateAnalysis(
                 const context = dayContextByDate.get(dateKey);
                 /* istanbul ignore if -- defensive: context always exists since allDates populates dayContextByDate */
                 if (!context) continue;
-                const dayEntries = context.entries;
                 const effectiveCapacity = context.effectiveCapacity;
 
-                /* istanbul ignore next -- defensive: timeInterval.start is always present for valid entries */
-                /* Stryker disable all: Defensive fallback for null timeInterval (never triggered with valid entries) */
-                // Sort entries chronologically. For malformed entries missing timeInterval.start,
-                // we maintain their relative order (return 0) rather than sorting incorrectly.
-                // This is a defensive measure - valid Clockify entries always have timeInterval.start.
-                const sortedEntries = [...dayEntries].sort((a, b) => {
-                    const aStart = a.timeInterval?.start;
-                    const bStart = b.timeInterval?.start;
-
-                    // If either entry is missing start time, keep relative order
-                    if (!aStart || !bStart) {
-                        return 0;
-                    }
-
-                    return aStart.localeCompare(bStart);
-                });
-                /* Stryker restore all */
+                // Use pre-sorted entries from day context (sorted once during context init)
+                const sortedEntries = context.sortedEntries;
 
                 let dailyAccumulator = 0;
                 for (const entry of sortedEntries) {
@@ -1877,7 +1877,6 @@ export function calculateAnalysis(
             const context = dayContextByDate.get(dateKey);
             /* istanbul ignore if -- defensive: context always exists since allDates populates dayContextByDate */
             if (!context) continue;
-            const dayEntries = context.entries;
             const dayMeta = context.meta;
             const baseCapacity = context.baseCapacity;
             const effectiveCapacity = context.effectiveCapacity;
@@ -1886,13 +1885,8 @@ export function calculateAnalysis(
             const isTimeOffDay = context.isTimeOffDay;
             const timeOffHours = context.timeOffHours;
 
-            /* istanbul ignore next -- defensive: timeInterval.start is always present for valid entries */
-            /* Stryker disable all: Defensive fallback for null timeInterval (never triggered with valid entries) */
-            const sortedEntries = [...dayEntries].sort(
-                (a, b) =>
-                    (a.timeInterval?.start || '').localeCompare(b.timeInterval?.start || '')
-            );
-            /* Stryker restore all */
+            // Use pre-sorted entries from day context (sorted once during context init)
+            const sortedEntries = context.sortedEntries;
 
             const processedEntries: TimeEntry[] = [];
 

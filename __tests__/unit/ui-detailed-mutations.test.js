@@ -3,7 +3,7 @@
  */
 
 import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { renderDetailedTable, destroyDetailedObserver } from '../../js/ui/detailed.js';
+import { renderDetailedTable, destroyDetailedObserver, invalidateDetailedCache } from '../../js/ui/detailed.js';
 import { store } from '../../js/state.js';
 import { standardAfterEach } from '../helpers/setup.js';
 
@@ -980,5 +980,282 @@ describe('ui/detailed mutations', () => {
       destroyDetailedObserver();
       destroyDetailedObserver();
     }).not.toThrow();
+  });
+
+  describe('Detailed Entries Cache (Phase 3.1 + 3.2)', () => {
+    const makeUsers = () => [
+      {
+        userId: 'user1',
+        userName: 'Test User',
+        days: new Map([
+          [
+            '2024-01-15',
+            {
+              entries: [
+                {
+                  description: 'Regular work',
+                  timeInterval: {
+                    start: '2024-01-15T09:00:00Z',
+                    end: '2024-01-15T17:00:00Z',
+                    duration: 'PT8H',
+                  },
+                  analysis: {
+                    regular: 8,
+                    overtime: 0,
+                    isBillable: true,
+                    cost: 100,
+                    hourlyRate: 12.5,
+                  },
+                  type: 'REGULAR',
+                },
+              ],
+              meta: {
+                capacity: 8,
+                isHoliday: false,
+                isNonWorking: false,
+                isTimeOff: false,
+              },
+            },
+          ],
+          [
+            '2024-01-16',
+            {
+              entries: [
+                {
+                  description: 'Holiday work',
+                  timeInterval: {
+                    start: '2024-01-16T09:00:00Z',
+                    end: '2024-01-16T17:00:00Z',
+                    duration: 'PT8H',
+                  },
+                  analysis: {
+                    regular: 0,
+                    overtime: 8,
+                    isBillable: false,
+                    cost: 0,
+                    hourlyRate: 15,
+                  },
+                  type: 'HOLIDAY',
+                },
+              ],
+              meta: {
+                capacity: 0,
+                isHoliday: true,
+                isNonWorking: false,
+                isTimeOff: false,
+              },
+            },
+          ],
+          [
+            '2024-01-20',
+            {
+              entries: [
+                {
+                  description: 'Weekend work',
+                  timeInterval: {
+                    start: '2024-01-20T10:00:00Z',
+                    end: '2024-01-20T14:00:00Z',
+                    duration: 'PT4H',
+                  },
+                  analysis: {
+                    regular: 0,
+                    overtime: 4,
+                    isBillable: true,
+                    cost: 60,
+                    hourlyRate: 15,
+                  },
+                  type: 'OFFDAY',
+                },
+              ],
+              meta: {
+                capacity: 0,
+                isHoliday: false,
+                isNonWorking: true,
+                isTimeOff: false,
+              },
+            },
+          ],
+        ]),
+        totals: {
+          total: 20,
+          regular: 8,
+          overtime: 12,
+          expectedCapacity: 8,
+          breaks: 0,
+          billableWorked: 12,
+          nonBillableWorked: 8,
+          billableOT: 4,
+          nonBillableOT: 8,
+          amount: 160,
+          otPremium: 30,
+          otPremiumTier2: 0,
+          holidayCount: 1,
+          timeOffCount: 0,
+        },
+      },
+    ];
+
+    beforeEach(() => {
+      invalidateDetailedCache();
+    });
+
+    it('cache hit: same users reference produces consistent results', () => {
+      const users = makeUsers();
+
+      renderDetailedTable(users, 'all');
+      const html1 = document.getElementById('detailedTableContainer').innerHTML;
+
+      // Render again with same reference — should use cache
+      renderDetailedTable(users, null);
+      const html2 = document.getElementById('detailedTableContainer').innerHTML;
+
+      expect(html1).toBe(html2);
+    });
+
+    it('cache miss: new users array rebuilds entries', () => {
+      const users1 = makeUsers();
+      renderDetailedTable(users1, 'all');
+      const rows1 = document.querySelectorAll('#detailedTableContainer tbody tr');
+      expect(rows1.length).toBe(3);
+
+      // New array reference with different data
+      const users2 = [
+        {
+          userId: 'user2',
+          userName: 'Other User',
+          days: new Map([
+            [
+              '2024-02-01',
+              {
+                entries: [
+                  {
+                    description: 'Feb work',
+                    timeInterval: {
+                      start: '2024-02-01T09:00:00Z',
+                      end: '2024-02-01T17:00:00Z',
+                      duration: 'PT8H',
+                    },
+                    analysis: { regular: 8, overtime: 0, isBillable: true, cost: 100, hourlyRate: 12.5 },
+                    type: 'REGULAR',
+                  },
+                ],
+                meta: { capacity: 8, isHoliday: false, isNonWorking: false, isTimeOff: false },
+              },
+            ],
+          ]),
+          totals: { total: 8, regular: 8, overtime: 0, expectedCapacity: 8, breaks: 0, billableWorked: 8, nonBillableWorked: 0, billableOT: 0, nonBillableOT: 0, amount: 100, otPremium: 0, otPremiumTier2: 0, holidayCount: 0, timeOffCount: 0 },
+        },
+      ];
+
+      renderDetailedTable(users2, 'all');
+      const rows2 = document.querySelectorAll('#detailedTableContainer tbody tr');
+      expect(rows2.length).toBe(1);
+      expect(document.getElementById('detailedTableContainer').innerHTML).toContain('Other User');
+    });
+
+    it('invalidateDetailedCache forces rebuild on next render', () => {
+      const users = makeUsers();
+
+      renderDetailedTable(users, 'all');
+      const html1 = document.getElementById('detailedTableContainer').innerHTML;
+
+      invalidateDetailedCache();
+
+      // Same reference, but cache was invalidated — should rebuild (same result)
+      renderDetailedTable(users, null);
+      const html2 = document.getElementById('detailedTableContainer').innerHTML;
+
+      // Content should still be the same since data hasn't changed
+      expect(html1).toBe(html2);
+    });
+
+    it('invalidateDetailedCache can be called safely when cache is empty', () => {
+      expect(() => {
+        invalidateDetailedCache();
+        invalidateDetailedCache();
+      }).not.toThrow();
+    });
+
+    it('filter "holiday" subset returns only holiday entries', () => {
+      const users = makeUsers();
+
+      renderDetailedTable(users, 'holiday');
+
+      const container = document.getElementById('detailedTableContainer');
+      // Only the holiday day (2024-01-16) should appear
+      expect(container.innerHTML).toContain('2024-01-16');
+      expect(container.innerHTML).not.toContain('2024-01-15');
+      expect(container.innerHTML).not.toContain('2024-01-20');
+      const rows = container.querySelectorAll('tbody tr');
+      expect(rows.length).toBe(1);
+    });
+
+    it('filter "offday" subset returns only non-working entries', () => {
+      const users = makeUsers();
+
+      renderDetailedTable(users, 'offday');
+
+      const container = document.getElementById('detailedTableContainer');
+      // Only the weekend day (2024-01-20) should appear
+      expect(container.innerHTML).toContain('2024-01-20');
+      expect(container.innerHTML).not.toContain('2024-01-15');
+      expect(container.innerHTML).not.toContain('2024-01-16');
+      const rows = container.querySelectorAll('tbody tr');
+      expect(rows.length).toBe(1);
+    });
+
+    it('filter "billable" subset returns only billable entries', () => {
+      const users = makeUsers();
+
+      renderDetailedTable(users, 'billable');
+
+      const container = document.getElementById('detailedTableContainer');
+      const rows = container.querySelectorAll('tbody tr');
+      // 2 billable entries: regular (Jan 15) + weekend (Jan 20)
+      expect(rows.length).toBe(2);
+      // Non-billable holiday entry (Jan 16) should not appear
+      expect(container.innerHTML).not.toContain('2024-01-16');
+    });
+
+    it('filter "all" returns all entries', () => {
+      const users = makeUsers();
+
+      renderDetailedTable(users, 'all');
+
+      const rows = document.querySelectorAll('#detailedTableContainer tbody tr');
+      expect(rows.length).toBe(3);
+    });
+
+    it('unknown filter falls back to all entries', () => {
+      const users = makeUsers();
+
+      // Use a non-existent filter key
+      store.ui.activeDetailedFilter = 'nonexistent';
+      renderDetailedTable(users, null);
+
+      const rows = document.querySelectorAll('#detailedTableContainer tbody tr');
+      // Should show all 3 entries (fallback)
+      expect(rows.length).toBe(3);
+    });
+
+    it('switching filters uses cached subsets', () => {
+      const users = makeUsers();
+
+      // First render builds cache
+      renderDetailedTable(users, 'all');
+      expect(document.querySelectorAll('#detailedTableContainer tbody tr').length).toBe(3);
+
+      // Switch to holiday — uses pre-computed subset
+      renderDetailedTable(users, 'holiday');
+      expect(document.querySelectorAll('#detailedTableContainer tbody tr').length).toBe(1);
+
+      // Switch to offday — uses pre-computed subset
+      renderDetailedTable(users, 'offday');
+      expect(document.querySelectorAll('#detailedTableContainer tbody tr').length).toBe(1);
+
+      // Switch back to all — uses pre-computed subset
+      renderDetailedTable(users, 'all');
+      expect(document.querySelectorAll('#detailedTableContainer tbody tr').length).toBe(3);
+    });
   });
 });

@@ -8,6 +8,7 @@ import type { UICallbacks } from '../types.js';
 // Import for internal use
 import { getElements } from './shared.js';
 import { renderDetailedTable } from './detailed.js';
+import { renderSummaryTable } from './summary.js';
 import { showOverridesPage, hideOverridesPage, renderOverridesPage } from './overrides.js';
 
 // Re-export all public functions
@@ -115,6 +116,58 @@ export function bindEvents(callbacks: UICallbacks): () => void {
     };
     if (detailedContainer) {
         detailedContainer.addEventListener('click', detailedClickHandler);
+    }
+
+    // Summary table pagination event delegation
+    const summaryPaginationContainer = document.getElementById('summaryPaginationControls');
+    const summaryPaginationHandler = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.matches('.summary-page-btn')) {
+            const newPage = parseInt(target.dataset.summaryPage || '', 10);
+            if (!isNaN(newPage)) {
+                store.ui.summaryPage = newPage;
+                if (store.analysisResults) {
+                    renderSummaryTable(store.analysisResults);
+                }
+            }
+        }
+    };
+    if (summaryPaginationContainer) {
+        summaryPaginationContainer.addEventListener('click', summaryPaginationHandler);
+    }
+
+    // Overrides pagination event delegation
+    const overridesPaginationContainer = document.getElementById('overridesPaginationControls');
+    const overridesPaginationHandler = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.matches('.overrides-page-btn')) {
+            const newPage = parseInt(target.dataset.overridesPage || '', 10);
+            if (!isNaN(newPage)) {
+                store.ui.overridesPage = newPage;
+                renderOverridesPage();
+            }
+        }
+    };
+    if (overridesPaginationContainer) {
+        overridesPaginationContainer.addEventListener('click', overridesPaginationHandler);
+    }
+
+    // Overrides search input with debounce
+    const overridesSearchContainer = document.getElementById('overridesSearchContainer');
+    let overridesSearchTimer: ReturnType<typeof setTimeout> | null = null;
+    const overridesSearchHandler = (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        if (target.id === 'overridesSearchInput') {
+            if (overridesSearchTimer) clearTimeout(overridesSearchTimer);
+            overridesSearchTimer = setTimeout(() => {
+                store.ui.overridesSearch = target.value;
+                store.ui.overridesPage = 1;
+                renderOverridesPage();
+            }, 250);
+        }
+    };
+    if (overridesSearchContainer) {
+        overridesSearchContainer.addEventListener('input', overridesSearchHandler);
     }
 
     // Close popover on Escape key
@@ -277,6 +330,13 @@ export function bindEvents(callbacks: UICallbacks): () => void {
 
     // Return cleanup function that removes all event listeners
     return () => {
+        if (overridesPaginationContainer) {
+            overridesPaginationContainer.removeEventListener('click', overridesPaginationHandler);
+        }
+        if (overridesSearchContainer) {
+            overridesSearchContainer.removeEventListener('input', overridesSearchHandler);
+        }
+        if (overridesSearchTimer) clearTimeout(overridesSearchTimer);
         if (Elements.overridesUserList) {
             Elements.overridesUserList.removeEventListener('wheel', wheelHandler, { passive: false } as EventListenerOptions);
         }

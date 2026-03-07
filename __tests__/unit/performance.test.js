@@ -95,7 +95,7 @@ describe('Performance-sensitive behaviors', () => {
     expect(cards.length).toBe(1);
   });
 
-  it('stores report cache in sessionStorage (not localStorage)', () => {
+  it('stores report cache in sessionStorage (not localStorage)', async () => {
     const originalSessionStorage = global.sessionStorage;
     const originalLocalStorage = global.localStorage;
     const sessionSetItem = jest.fn();
@@ -110,7 +110,7 @@ describe('Performance-sensitive behaviors', () => {
       configurable: true
     });
 
-    store.setCachedReport('report_key_test', [{ id: 'entry1' }]);
+    await store.setCachedReport('report_key_test', [{ id: 'entry1' }]);
 
     expect(sessionSetItem).toHaveBeenCalledWith(STORAGE_KEYS.REPORT_CACHE, expect.any(String));
     expect(localSetItem).not.toHaveBeenCalled();

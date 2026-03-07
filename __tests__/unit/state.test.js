@@ -65,7 +65,7 @@ describe('State Module - Store Class', () => {
         enableTieredOT: false,
         amountDisplay: 'earned',
         overtimeBasis: 'daily',
-        maxPages: 50,
+        maxPages: 2500, // Raised for 1500-user scale (Phase 1.2)
         encryptStorage: true, // Enterprise default
         auditConsent: true, // Enterprise default
       });
@@ -99,6 +99,11 @@ describe('State Module - Store Class', () => {
         detailedPage: 1,
         detailedPageSize: 50,
         activeDetailedFilter: 'all',
+        summaryPage: 1,
+        summaryPageSize: 100,
+        overridesPage: 1,
+        overridesPageSize: 50,
+        overridesSearch: '',
         hasCostRates: true,
         hasAmountRates: true,
         paginationTruncated: false,
@@ -1123,32 +1128,32 @@ describe('State Module - Store Class', () => {
       expect(key).toBeNull();
     });
 
-    it('should cache and retrieve report data', () => {
+    it('should cache and retrieve report data', async () => {
       const entries = [{ id: 'entry1' }, { id: 'entry2' }];
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
 
-      store.setCachedReport(key, entries);
-      const cached = store.getCachedReport(key);
+      await store.setCachedReport(key, entries);
+      const cached = await store.getCachedReport(key);
 
       expect(cached).toEqual(entries);
     });
 
-    it('should return null for non-existent cache', () => {
-      const cached = store.getCachedReport('non-existent-key');
+    it('should return null for non-existent cache', async () => {
+      const cached = await store.getCachedReport('non-existent-key');
 
       expect(cached).toBeNull();
     });
 
-    it('should return null for mismatched cache key', () => {
+    it('should return null for mismatched cache key', async () => {
       const entries = [{ id: 'entry1' }];
-      store.setCachedReport('key1', entries);
+      await store.setCachedReport('key1', entries);
 
-      const cached = store.getCachedReport('different-key');
+      const cached = await store.getCachedReport('different-key');
 
       expect(cached).toBeNull();
     });
 
-    it('should return null for expired cache', () => {
+    it('should return null for expired cache', async () => {
       const entries = [{ id: 'entry1' }];
       const key = 'test-key';
 
@@ -1159,26 +1164,26 @@ describe('State Module - Store Class', () => {
         entries
       }));
 
-      const cached = store.getCachedReport(key);
+      const cached = await store.getCachedReport(key);
 
       expect(cached).toBeNull();
     });
 
-    it('should clear report cache', () => {
+    it('should clear report cache', async () => {
       const entries = [{ id: 'entry1' }];
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
 
-      store.setCachedReport(key, entries);
-      const cachedReport = store.getCachedReport(key);
+      await store.setCachedReport(key, entries);
+      const cachedReport = await store.getCachedReport(key);
       expect(cachedReport).not.toBeNull();
       expect(Array.isArray(cachedReport)).toBe(true);
       expect(cachedReport).toHaveLength(1);
 
       store.clearReportCache();
-      expect(store.getCachedReport(key)).toBeNull();
+      expect(await store.getCachedReport(key)).toBeNull();
     });
 
-    it('should handle sessionStorage quota exceeded gracefully', () => {
+    it('should handle sessionStorage quota exceeded gracefully', async () => {
       // Mock sessionStorage.setItem to throw using Object.defineProperty
       const originalSetItem = sessionStorage.setItem.bind(sessionStorage);
       const originalGetItem = sessionStorage.getItem.bind(sessionStorage);
@@ -1203,8 +1208,8 @@ describe('State Module - Store Class', () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [{ id: 'entry1' }];
 
-      expect(() => store.setCachedReport(key, entries)).not.toThrow();
-      expect(store.getCachedReport(key)).toEqual(entries);
+      await expect(store.setCachedReport(key, entries)).resolves.not.toThrow();
+      expect(await store.getCachedReport(key)).toEqual(entries);
 
       // Restore original
       Object.defineProperty(sessionStorage, 'setItem', {
@@ -1219,12 +1224,34 @@ describe('State Module - Store Class', () => {
       });
     });
 
-    it('should handle corrupted cache JSON gracefully', () => {
+    it('should handle corrupted cache JSON gracefully', async () => {
       sessionStorage.setItem(STORAGE_KEYS.REPORT_CACHE, 'not valid json');
 
-      const cached = store.getCachedReport('any-key');
+      const cached = await store.getCachedReport('any-key');
 
       expect(cached).toBeNull();
+    });
+
+    it('getCachedReport returns a Promise', () => {
+      const result = store.getCachedReport('any-key');
+      expect(result).toBeInstanceOf(Promise);
+    });
+
+    it('setCachedReport returns a Promise', () => {
+      const result = store.setCachedReport('key', [{ id: 'e1' }]);
+      expect(result).toBeInstanceOf(Promise);
+    });
+
+    it('should fall back to sessionStorage when IndexedDB is unavailable', async () => {
+      // In jsdom, indexedDB is not available, so this tests the fallback path
+      const key = 'fallback-test-key';
+      const entries = [{ id: 'fallback-entry' }];
+
+      await store.setCachedReport(key, entries);
+      const cached = await store.getCachedReport(key);
+
+      // Should still work via sessionStorage fallback
+      expect(cached).toEqual(entries);
     });
   });
 
@@ -1755,29 +1782,29 @@ describe('State Module - Store Class', () => {
       store.setToken('mock_token', { workspaceId: 'workspace_123' });
     });
 
-    it('should return null when sessionStorage.getItem throws (line 1077)', () => {
+    it('should return null when sessionStorage.getItem throws (line 1077)', async () => {
       // Set up corrupted data that causes parsing to fail in catch block
       // The catch block at line 1075-1077 handles any thrown error
       const getItemSpy = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
         throw new Error('SecurityError');
       });
 
-      const cached = store.getCachedReport('test-key');
+      const cached = await store.getCachedReport('test-key');
       expect(cached).toBeNull();
 
       // Restore original
       getItemSpy.mockRestore();
     });
 
-    it('should return null when parsing cached report fails', () => {
+    it('should return null when parsing cached report fails', async () => {
       // Store malformed JSON
       sessionStorage.setItem('otplus_report_cache', '{ invalid json }');
 
-      const cached = store.getCachedReport('test-key');
+      const cached = await store.getCachedReport('test-key');
       expect(cached).toBeNull();
     });
 
-    it('should not throw when sessionStorage.setItem fails (line 1117)', () => {
+    it('should not throw when sessionStorage.setItem fails (line 1117)', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
 
       // Use jest.spyOn to mock the setItem method
@@ -1789,7 +1816,7 @@ describe('State Module - Store Class', () => {
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
       // Should not throw - the catch at line 1115-1117 handles this
-      expect(() => store.setCachedReport(key, [{ id: 'entry1' }])).not.toThrow();
+      await expect(store.setCachedReport(key, [{ id: 'entry1' }])).resolves.not.toThrow();
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Failed to cache report data'),
         expect.anything()
@@ -1985,10 +2012,10 @@ describe('State Module - Store Class', () => {
       store.setToken('mock_token', { workspaceId: 'workspace_123' });
     });
 
-    it('should NOT invalidate report cache when config changes', () => {
+    it('should NOT invalidate report cache when config changes', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [{ id: 'entry1' }];
-      store.setCachedReport(key, entries);
+      await store.setCachedReport(key, entries);
 
       // Change config
       store.config.showBillableBreakdown = !store.config.showBillableBreakdown;
@@ -1996,14 +2023,14 @@ describe('State Module - Store Class', () => {
       store.saveConfig();
 
       // Cache should still be valid
-      const cached = store.getCachedReport(key);
+      const cached = await store.getCachedReport(key);
       expect(cached).toEqual(entries);
     });
 
-    it('should NOT invalidate report cache when calcParams change', () => {
+    it('should NOT invalidate report cache when calcParams change', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [{ id: 'entry1' }];
-      store.setCachedReport(key, entries);
+      await store.setCachedReport(key, entries);
 
       // Change calc params
       store.calcParams.dailyThreshold = 10;
@@ -2011,45 +2038,45 @@ describe('State Module - Store Class', () => {
       store.saveConfig();
 
       // Cache should still be valid
-      const cached = store.getCachedReport(key);
+      const cached = await store.getCachedReport(key);
       expect(cached).toEqual(entries);
     });
 
-    it('should NOT invalidate report cache when overrides change', () => {
+    it('should NOT invalidate report cache when overrides change', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [{ id: 'entry1' }];
-      store.setCachedReport(key, entries);
+      await store.setCachedReport(key, entries);
 
       // Add and modify overrides
       store.updateOverride('user1', 'capacity', 6);
       store.updateOverride('user1', 'multiplier', 2);
 
       // Cache should still be valid
-      const cached = store.getCachedReport(key);
+      const cached = await store.getCachedReport(key);
       expect(cached).toEqual(entries);
     });
 
-    it('should NOT invalidate report cache when per-day overrides change', () => {
+    it('should NOT invalidate report cache when per-day overrides change', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [{ id: 'entry1' }];
-      store.setCachedReport(key, entries);
+      await store.setCachedReport(key, entries);
 
       // Add per-day overrides
       store.setOverrideMode('user1', 'perDay');
       store.updatePerDayOverride('user1', '2025-01-15', 'capacity', 4);
 
       // Cache should still be valid
-      const cached = store.getCachedReport(key);
+      const cached = await store.getCachedReport(key);
       expect(cached).toEqual(entries);
     });
 
-    it('should invalidate report cache when workspace changes', () => {
+    it('should invalidate report cache when workspace changes', async () => {
       const key1 = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [{ id: 'entry1' }];
-      store.setCachedReport(key1, entries);
+      await store.setCachedReport(key1, entries);
 
       // Verify initial cache
-      expect(store.getCachedReport(key1)).toEqual(entries);
+      expect(await store.getCachedReport(key1)).toEqual(entries);
 
       // Switch workspace
       store.setToken('new_token', { workspaceId: 'workspace_456' });
@@ -2057,10 +2084,10 @@ describe('State Module - Store Class', () => {
       // Old cache key is no longer valid for new workspace
       const key2 = store.getReportCacheKey('2025-01-01', '2025-01-31');
       expect(key2).not.toBe(key1);
-      expect(store.getCachedReport(key2)).toBeNull();
+      expect(await store.getCachedReport(key2)).toBeNull();
     });
 
-    it('should respect REPORT_CACHE_TTL of 5 minutes', () => {
+    it('should respect REPORT_CACHE_TTL of 5 minutes', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [{ id: 'entry1' }];
 
@@ -2072,7 +2099,7 @@ describe('State Module - Store Class', () => {
       }));
 
       // Should still be valid
-      expect(store.getCachedReport(key)).toEqual(entries);
+      expect(await store.getCachedReport(key)).toEqual(entries);
 
       // Set timestamp 6 minutes ago (beyond TTL)
       sessionStorage.setItem('otplus_report_cache', JSON.stringify({
@@ -2082,10 +2109,10 @@ describe('State Module - Store Class', () => {
       }));
 
       // Should be expired
-      expect(store.getCachedReport(key)).toBeNull();
+      expect(await store.getCachedReport(key)).toBeNull();
     });
 
-    it('should invalidate cache at exactly 5 minute boundary', () => {
+    it('should invalidate cache at exactly 5 minute boundary', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [{ id: 'entry1' }];
       const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -2097,7 +2124,7 @@ describe('State Module - Store Class', () => {
         entries
       }));
 
-      expect(store.getCachedReport(key)).toBeNull();
+      expect(await store.getCachedReport(key)).toBeNull();
 
       // At exactly 5 minutes - 1ms (still valid)
       sessionStorage.setItem('otplus_report_cache', JSON.stringify({
@@ -2106,7 +2133,7 @@ describe('State Module - Store Class', () => {
         entries
       }));
 
-      expect(store.getCachedReport(key)).toEqual(entries);
+      expect(await store.getCachedReport(key)).toEqual(entries);
     });
 
     it('should NOT clear profile cache when overrides change', () => {
@@ -2470,7 +2497,7 @@ describe('State Corruption Handling', () => {
       enableTieredOT: false,
       amountDisplay: 'earned',
       overtimeBasis: 'daily',
-      maxPages: 50,
+      maxPages: 2500,
       encryptStorage: true,
       auditConsent: true
     };
@@ -2490,6 +2517,11 @@ describe('State Corruption Handling', () => {
       detailedPage: 1,
       detailedPageSize: 50,
       activeDetailedFilter: 'all',
+      summaryPage: 1,
+      summaryPageSize: 100,
+      overridesPage: 1,
+      overridesPageSize: 50,
+      overridesSearch: '',
       hasCostRates: true,
       hasAmountRates: true
     };

@@ -67,54 +67,49 @@ interface PlaceholderEntry {
     };
 }
 
+/** Number of users per chunk when building CSV rows */
+const CSV_CHUNK_SIZE = 50;
+
 /**
- * Generates a CSV file from the analysis results and triggers a browser download.
- *
- * Logic:
- * 1. Defines headers corresponding to the PRD requirements.
- * 2. Iterates through all users and their daily entries.
- * 3. Sanitizes and formats each field (escaping CSV characters, preventing formula injection).
- * 4. Creates a Blob and programmatically clicks a hidden link to download.
- *
- * @param analysis - The calculated analysis results (list of user objects).
- * @param fileName - The desired filename for the download.
+ * Yields control back to the event loop to prevent UI freezing during large exports.
  */
-export function downloadCsv(
-    analysis: UserAnalysis[],
-    fileName: string = 'otplus-report.csv'
-): void {
-    // Column headers describing the values in each exported row
-    const headers = [
-        'Date',
-        'User',
-        'Description',
-        'EffectiveCapacityHours',
-        'RegularHours',
-        'OvertimeHours',
-        'DailyOvertimeHours',
-        'WeeklyOvertimeHours',
-        'OverlapOvertimeHours',
-        'CombinedOvertimeHours',
-        'BillableWorkedHours',
-        'BillableOTHours',
-        'NonBillableWorkedHours',
-        'NonBillableOTHours',
-        'TotalHours',
-        'TotalHoursDecimal',
-        'isHoliday',
-        'holidayName',
-        'isNonWorkingDay',
-        'isTimeOff',
-    ];
+function yieldToEventLoop(): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
 
-    // Build CSV rows with sanitized values, ensuring even empty days appear in the export
-    // Build each CSV row with sanitized text to prevent formula injection
+/** Column headers describing the values in each exported row */
+const CSV_HEADERS = [
+    'Date',
+    'User',
+    'Description',
+    'EffectiveCapacityHours',
+    'RegularHours',
+    'OvertimeHours',
+    'DailyOvertimeHours',
+    'WeeklyOvertimeHours',
+    'OverlapOvertimeHours',
+    'CombinedOvertimeHours',
+    'BillableWorkedHours',
+    'BillableOTHours',
+    'NonBillableWorkedHours',
+    'NonBillableOTHours',
+    'TotalHours',
+    'TotalHoursDecimal',
+    'isHoliday',
+    'holidayName',
+    'isNonWorkingDay',
+    'isTimeOff',
+];
+
+/**
+ * Builds CSV rows for a chunk of users.
+ * Extracted to keep the main export function focused on orchestration.
+ */
+// eslint-disable-next-line complexity -- CSV row generation with many data fields
+function buildRowsForUsers(users: UserAnalysis[]): string[] {
     const rows: string[] = [];
-
-    analysis.forEach((user) => {
+    users.forEach((user) => {
         Array.from(user.days.entries()).forEach(([dateKey, day]: [string, DayData]) => {
-            // Ensure gapless export: include a placeholder row for days with no time entries
-            // Even days without entries produce a placeholder row to keep exported data gapless
             const entriesToLoop: (TimeEntry | PlaceholderEntry)[] =
                 day.entries.length > 0
                     ? day.entries
@@ -129,12 +124,9 @@ export function downloadCsv(
                           },
                       ];
 
-            // eslint-disable-next-line complexity -- CSV row generation with many data fields
             entriesToLoop.forEach((e) => {
-                // Sanitize all text fields to prevent CSV injection
                 const userName = sanitizeFormulaInjection(user.userName);
                 const description = sanitizeFormulaInjection(e.description);
-                // Access day.meta.* instead of day.*
                 const holidayName = sanitizeFormulaInjection(day.meta?.holidayName);
 
                 const billableWorked = e.analysis?.isBillable ? e.analysis?.regular || 0 : 0;
@@ -149,7 +141,6 @@ export function downloadCsv(
                     ? parseIsoDuration(e.timeInterval.duration)
                     : 0;
 
-                // Build row with sanitized metrics, using day metadata for status columns
                 const row = [
                     dateKey,
                     userName,
@@ -171,17 +162,48 @@ export function downloadCsv(
                     holidayName,
                     day.meta?.isNonWorking ? 'Yes' : 'No',
                     day.meta?.isTimeOff ? 'Yes' : 'No',
-                ].map(escapeCsv); // Use helper for consistent CSV escaping (quotes, commas, newlines)
+                ].map(escapeCsv);
 
                 rows.push(row.join(','));
             });
         });
     });
+    return rows;
+}
 
-    const csvContent = headers.join(',') + '\n' + rows.join('\n');
-    // Prepend UTF-8 BOM (\uFEFF) for Excel compatibility with non-ASCII characters
-    // Without the BOM, Excel may misinterpret UTF-8 encoded files
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+/**
+ * Generates a CSV file from the analysis results and triggers a browser download.
+ *
+ * Processes users in chunks of CSV_CHUNK_SIZE (50) to avoid blocking the UI thread.
+ * For datasets with <= CSV_CHUNK_SIZE users, completes synchronously within the
+ * same microtask (no yield). Constructs the final Blob from pre-built chunk strings
+ * to avoid a single large concatenation.
+ *
+ * @param analysis - The calculated analysis results (list of user objects).
+ * @param fileName - The desired filename for the download.
+ */
+export async function downloadCsv(
+    analysis: UserAnalysis[],
+    fileName: string = 'otplus-report.csv'
+): Promise<void> {
+    // Build CSV in chunks, yielding between chunks for large datasets
+    const headerLine = CSV_HEADERS.join(',') + '\n';
+    const chunks: string[] = ['\uFEFF' + headerLine]; // BOM + header as first chunk
+
+    for (let i = 0; i < analysis.length; i += CSV_CHUNK_SIZE) {
+        const userChunk = analysis.slice(i, i + CSV_CHUNK_SIZE);
+        const rows = buildRowsForUsers(userChunk);
+        if (rows.length > 0) {
+            // Add newline prefix for chunks after the header
+            chunks.push(rows.join('\n'));
+        }
+        // Yield to event loop between chunks (but not after the last one)
+        if (i + CSV_CHUNK_SIZE < analysis.length) {
+            await yieldToEventLoop();
+        }
+    }
+
+    const blob = new Blob(chunks, { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement('a');
@@ -197,10 +219,6 @@ export function downloadCsv(
 
     // ========================================================================
     // AUDIT LOGGING
-    // ========================================================================
-    // Log export operations for compliance tracking. Privacy-safe: no PII,
-    // only hashed workspace ID and aggregate counts.
-    // Only log if audit consent is enabled (default: true for enterprise compliance)
     // ========================================================================
     if (store.config.auditConsent !== false) {
         const auditEntry = {

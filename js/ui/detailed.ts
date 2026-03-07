@@ -25,6 +25,54 @@ const NARROW_HEADER_WIDTH = 900;
 let detailedHeaderObserver: ResizeObserver | null = null;
 let observedDetailedCard: HTMLElement | null = null;
 
+// === Detailed entries cache (Phase 3.1 + 3.2) ===
+let _cachedDetailedEntries: DetailedEntry[] | null = null;
+let _cachedDetailedUsersRef: UserAnalysis[] | null = null;
+let _cachedFilterSubsets: Map<string, DetailedEntry[]> | null = null;
+
+function getCachedDetailedEntries(users: UserAnalysis[]): DetailedEntry[] {
+    if (_cachedDetailedUsersRef !== users || _cachedDetailedEntries === null) {
+        _cachedDetailedEntries = users.flatMap((u) =>
+            Array.from(u.days.values()).flatMap((d) =>
+                d.entries.map((e) => ({
+                    ...e,
+                    userName: u.userName,
+                    dayMeta: {
+                        isHoliday: d.meta?.isHoliday || false,
+                        holidayName: d.meta?.holidayName || '',
+                        isNonWorking: d.meta?.isNonWorking || false,
+                        isTimeOff: d.meta?.isTimeOff || false,
+                    },
+                }))
+            )
+        ).sort((a, b) =>
+            (b.timeInterval.start || '').localeCompare(a.timeInterval.start || '')
+        );
+        _cachedDetailedUsersRef = users;
+        _cachedFilterSubsets = null; // Invalidate filter subsets on cache rebuild
+    }
+    return _cachedDetailedEntries;
+}
+
+function getCachedFilterSubset(users: UserAnalysis[], filter: string): DetailedEntry[] {
+    const allEntries = getCachedDetailedEntries(users);
+    if (_cachedFilterSubsets === null) {
+        _cachedFilterSubsets = new Map();
+        _cachedFilterSubsets.set('all', allEntries);
+        _cachedFilterSubsets.set('holiday', allEntries.filter(e => e.dayMeta.isHoliday));
+        _cachedFilterSubsets.set('offday', allEntries.filter(e => e.dayMeta.isNonWorking));
+        _cachedFilterSubsets.set('billable', allEntries.filter(e => e.analysis?.isBillable));
+    }
+    return _cachedFilterSubsets.get(filter) || allEntries;
+}
+
+/** Clear the detailed entries cache (call when analysis results change). */
+export function invalidateDetailedCache(): void {
+    _cachedDetailedEntries = null;
+    _cachedDetailedUsersRef = null;
+    _cachedFilterSubsets = null;
+}
+
 /**
  * Updates the detailed table header layout based on container width.
  * Switches to compact headers in profit mode when the container is narrow
@@ -138,32 +186,8 @@ export function renderDetailedTable(
         store.ui.activeDetailedFilter = 'all';
     }
 
-    // Flatten entries, attach day-level metadata, and sort by start time
-    let allEntries: DetailedEntry[] = users.flatMap((u) =>
-        Array.from(u.days.values()).flatMap((d) =>
-            d.entries.map((e) => ({
-                ...e,
-                userName: u.userName,
-                dayMeta: {
-                    isHoliday: d.meta?.isHoliday || false,
-                    holidayName: d.meta?.holidayName || '',
-                    isNonWorking: d.meta?.isNonWorking || false,
-                    isTimeOff: d.meta?.isTimeOff || false,
-                },
-            }))
-        )
-    ).sort(/* istanbul ignore next -- defensive: timeInterval.start is always present */ (a, b) =>
-        (b.timeInterval.start || '').localeCompare(a.timeInterval.start || '')
-    );
-
-    // Apply user-selected filter chips
-    if (currentFilter === 'holiday') {
-        allEntries = allEntries.filter((e) => e.dayMeta.isHoliday);
-    } else if (currentFilter === 'offday') {
-        allEntries = allEntries.filter((e) => e.dayMeta.isNonWorking);
-    } else if (currentFilter === 'billable') {
-        allEntries = allEntries.filter((e) => e.analysis?.isBillable);
-    }
+    // Use cached flattened+sorted entries with pre-computed filter subsets
+    const allEntries = getCachedFilterSubset(users, currentFilter);
 
     // Update Chips UI
     document.querySelectorAll('#detailedFilters .chip').forEach((chip) => {

@@ -19,7 +19,9 @@ describe('Overrides userId escaping', () => {
     };
 
     document.body.innerHTML = `
+      <div id="overridesSearchContainer"></div>
       <div id="overridesUserList"></div>
+      <div id="overridesPaginationControls"></div>
     `;
     initializeElements(true);
   });

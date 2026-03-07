@@ -345,6 +345,7 @@ describe('Summary UI - renderSummaryTable', () => {
           </thead>
           <tbody id="summaryTableBody"></tbody>
         </table>
+        <div id="summaryPaginationControls"></div>
       </div>
       <div id="summaryGroupBy"></div>
       <div id="summaryExpandToggleContainer"></div>
@@ -797,5 +798,207 @@ describe('Summary UI - renderSummaryExpandToggle', () => {
     expect(button.id).toBe('summaryExpandToggle');
     expect(button.className).toContain('btn-text');
     expect(button.className).toContain('btn-xs');
+  });
+});
+
+describe('Summary UI - Pagination (Phase 3.3)', () => {
+  const makeUsers = (count) => {
+    const users = [];
+    for (let i = 0; i < count; i++) {
+      users.push({
+        userId: `user${i}`,
+        userName: `User ${i}`,
+        days: new Map([['2024-01-15', {
+          entries: [{
+            description: 'Work',
+            timeInterval: { start: '2024-01-15T09:00:00Z', duration: 'PT8H' },
+            analysis: {
+              regular: 8,
+              overtime: 0,
+              isBillable: true,
+              cost: 100,
+              amounts: {
+                earned: { totalAmountWithOT: 100 },
+                cost: { totalAmountWithOT: 80 },
+                profit: { totalAmountWithOT: 20 }
+              },
+              hourlyRate: 12.5,
+            },
+            projectId: 'proj1',
+            projectName: 'Project A',
+            type: 'REGULAR'
+          }],
+          meta: { capacity: 8, isHoliday: false, isNonWorking: false, isTimeOff: false }
+        }]]),
+        totals: {
+          total: 8, regular: 8, overtime: 0, expectedCapacity: 8, breaks: 0,
+          billableWorked: 8, nonBillableWorked: 0, billableOT: 0, nonBillableOT: 0,
+          dailyOvertime: 0, weeklyOvertime: 0, overlapOvertime: 0, combinedOvertime: 0,
+          amount: 100, amountBase: 80, amountEarned: 100, amountCost: 80, amountProfit: 20,
+          amountEarnedBase: 80, amountCostBase: 60, amountProfitBase: 20,
+          otPremium: 0, otPremiumTier2: 0, otPremiumEarned: 0, otPremiumCost: 0,
+          otPremiumProfit: 0, otPremiumTier2Earned: 0, otPremiumTier2Cost: 0,
+          otPremiumTier2Profit: 0, holidayCount: 0, timeOffCount: 0, holidayHours: 0, timeOffHours: 0,
+        }
+      });
+    }
+    return users;
+  };
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="summaryStrip"></div>
+      <div id="summaryTableContainer">
+        <table>
+          <thead><tr id="summaryHeaderRow"></tr></thead>
+          <tbody id="summaryTableBody"></tbody>
+        </table>
+        <div id="summaryPaginationControls"></div>
+      </div>
+      <div id="summaryGroupBy"></div>
+      <div id="summaryExpandToggleContainer"></div>
+      <div id="resultsContainer" class="hidden"></div>
+    `;
+
+    store.config = {
+      useProfileCapacity: true,
+      useProfileWorkingDays: true,
+      applyHolidays: true,
+      applyTimeOff: true,
+      showBillableBreakdown: false,
+      showDecimalTime: false,
+      enableTieredOT: false,
+      amountDisplay: 'earned',
+      overtimeBasis: 'daily',
+      maxPages: 10,
+      encryptStorage: true,
+      auditConsent: true,
+    };
+
+    store.ui = {
+      isLoading: false,
+      summaryExpanded: false,
+      summaryGroupBy: 'user',
+      overridesCollapsed: true,
+      activeTab: 'summary',
+      detailedPage: 1,
+      detailedPageSize: 50,
+      activeDetailedFilter: 'all',
+      summaryPage: 1,
+      summaryPageSize: 100,
+      hasCostRates: true,
+      hasAmountRates: true,
+      paginationTruncated: false,
+      paginationAbortedDueToTokenExpiration: false,
+    };
+
+    initializeElements(true);
+  });
+
+  afterEach(standardAfterEach);
+
+  it('renders all rows when count < pageSize', () => {
+    const users = makeUsers(5);
+    renderSummaryTable(users);
+
+    const rows = document.querySelectorAll('#summaryTableBody tr');
+    expect(rows.length).toBe(5);
+
+    // No pagination controls when all fit on one page
+    const pagination = document.getElementById('summaryPaginationControls');
+    expect(pagination.innerHTML).toBe('');
+  });
+
+  it('renders only pageSize rows when count > pageSize', () => {
+    store.ui.summaryPageSize = 3;
+    const users = makeUsers(7);
+    renderSummaryTable(users);
+
+    const rows = document.querySelectorAll('#summaryTableBody tr');
+    expect(rows.length).toBe(3);
+  });
+
+  it('pagination controls appear when totalPages > 1', () => {
+    store.ui.summaryPageSize = 3;
+    const users = makeUsers(7);
+    renderSummaryTable(users);
+
+    const pagination = document.getElementById('summaryPaginationControls');
+    expect(pagination.innerHTML).toContain('Page 1 of 3');
+    expect(pagination.innerHTML).toContain('First');
+    expect(pagination.innerHTML).toContain('Prev');
+    expect(pagination.innerHTML).toContain('Next');
+    expect(pagination.innerHTML).toContain('Last');
+    expect(pagination.innerHTML).toContain('7 rows');
+  });
+
+  it('first/prev buttons disabled on page 1', () => {
+    store.ui.summaryPageSize = 3;
+    store.ui.summaryPage = 1;
+    const users = makeUsers(7);
+    renderSummaryTable(users);
+
+    const pagination = document.getElementById('summaryPaginationControls');
+    const buttons = pagination.querySelectorAll('button');
+    // First and Prev are disabled
+    expect(buttons[0].disabled).toBe(true); // First
+    expect(buttons[1].disabled).toBe(true); // Prev
+    // Next and Last are enabled
+    expect(buttons[2].disabled).toBe(false); // Next
+    expect(buttons[3].disabled).toBe(false); // Last
+  });
+
+  it('next/last buttons disabled on last page', () => {
+    store.ui.summaryPageSize = 3;
+    store.ui.summaryPage = 3;
+    const users = makeUsers(7);
+    renderSummaryTable(users);
+
+    const pagination = document.getElementById('summaryPaginationControls');
+    expect(pagination.innerHTML).toContain('Page 3 of 3');
+    const buttons = pagination.querySelectorAll('button');
+    // First and Prev are enabled
+    expect(buttons[0].disabled).toBe(false); // First
+    expect(buttons[1].disabled).toBe(false); // Prev
+    // Next and Last are disabled
+    expect(buttons[2].disabled).toBe(true); // Next
+    expect(buttons[3].disabled).toBe(true); // Last
+  });
+
+  it('last page shows remaining rows', () => {
+    store.ui.summaryPageSize = 3;
+    store.ui.summaryPage = 3; // Last page: 7 rows, page 3 = 1 row
+    const users = makeUsers(7);
+    renderSummaryTable(users);
+
+    const rows = document.querySelectorAll('#summaryTableBody tr');
+    expect(rows.length).toBe(1);
+  });
+
+  it('page clamped to totalPages when out of bounds', () => {
+    store.ui.summaryPageSize = 3;
+    store.ui.summaryPage = 999; // Way beyond
+    const users = makeUsers(7);
+    renderSummaryTable(users);
+
+    // Should clamp to last page (3)
+    const pagination = document.getElementById('summaryPaginationControls');
+    expect(pagination.innerHTML).toContain('Page 3 of 3');
+    const rows = document.querySelectorAll('#summaryTableBody tr');
+    expect(rows.length).toBe(1);
+  });
+
+  it('data-summary-page attributes are correct', () => {
+    store.ui.summaryPageSize = 3;
+    store.ui.summaryPage = 2;
+    const users = makeUsers(7);
+    renderSummaryTable(users);
+
+    const pagination = document.getElementById('summaryPaginationControls');
+    const buttons = pagination.querySelectorAll('button');
+    expect(buttons[0].dataset.summaryPage).toBe('1');    // First
+    expect(buttons[1].dataset.summaryPage).toBe('1');    // Prev (page 2-1=1)
+    expect(buttons[2].dataset.summaryPage).toBe('3');    // Next (page 2+1=3)
+    expect(buttons[3].dataset.summaryPage).toBe('3');    // Last
   });
 });

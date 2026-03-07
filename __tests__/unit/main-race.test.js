@@ -154,7 +154,10 @@ describe('Main handleGenerateReport concurrency', () => {
     );
 
     const firstPromise = handleGenerateReport();
+    // Flush microtasks so async getCachedReport resolves and fetch is called
+    await Promise.resolve(); await Promise.resolve();
     const secondPromise = handleGenerateReport();
+    await Promise.resolve(); await Promise.resolve();
 
     resolveSecond([
       {
@@ -246,6 +249,7 @@ describe('Main handleGenerateReport concurrency', () => {
       );
 
     const firstPromise = handleGenerateReport();
+    await Promise.resolve(); await Promise.resolve();
     const secondPromise = handleGenerateReport();
 
     // Allow first request abort path to complete its cleanup before starting the third.
@@ -253,6 +257,7 @@ describe('Main handleGenerateReport concurrency', () => {
     await Promise.resolve();
 
     const thirdPromise = handleGenerateReport();
+    await Promise.resolve(); await Promise.resolve();
     expect(apiMock.fetchDetailedReport).toHaveBeenCalledTimes(3);
 
     const latestEntries = [buildEntry('entry_third', '2025-01-04')];
@@ -304,9 +309,11 @@ describe('Main handleGenerateReport concurrency', () => {
 
     // Start first request
     const firstPromise = handleGenerateReport();
+    await Promise.resolve(); await Promise.resolve();
 
     // Start second request (aborts first)
     const secondPromise = handleGenerateReport();
+    await Promise.resolve(); await Promise.resolve();
 
     // Resolve second request's entries and profiles first (simulates faster response)
     const secondProfileData = new Map([

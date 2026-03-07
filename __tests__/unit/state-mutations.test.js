@@ -425,13 +425,13 @@ describe('State Mutation Tests', () => {
       expect(key).toBe(null);
     });
 
-    it('setCachedReport() should store entries in sessionStorage', () => {
+    it('setCachedReport() should store entries in sessionStorage', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [
         { id: 'entry1', userId: 'user1', timeInterval: { start: '2025-01-01T09:00:00Z', end: '2025-01-01T17:00:00Z' } },
       ];
 
-      store.setCachedReport(key, entries);
+      await store.setCachedReport(key, entries);
 
       const cached = sessionStorage.getItem('otplus_report_cache');
       expect(cached).not.toBeNull();
@@ -442,20 +442,20 @@ describe('State Mutation Tests', () => {
       expect(parsed.entries[0].id).toBe('entry1');
     });
 
-    it('getCachedReport() should return cached entries if fresh', () => {
+    it('getCachedReport() should return cached entries if fresh', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [
         { id: 'entry2', userId: 'user2', timeInterval: { start: '2025-01-02T09:00:00Z', end: '2025-01-02T17:00:00Z' } },
       ];
 
-      store.setCachedReport(key, entries);
-      const retrieved = store.getCachedReport(key);
+      await store.setCachedReport(key, entries);
+      const retrieved = await store.getCachedReport(key);
 
       expect(retrieved).toHaveLength(1);
       expect(retrieved[0].id).toBe('entry2');
     });
 
-    it('getCachedReport() should return null if cache expired', () => {
+    it('getCachedReport() should return null if cache expired', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const cache = {
         key,
@@ -465,11 +465,11 @@ describe('State Mutation Tests', () => {
 
       sessionStorage.setItem('otplus_report_cache', JSON.stringify(cache));
 
-      const retrieved = store.getCachedReport(key);
+      const retrieved = await store.getCachedReport(key);
       expect(retrieved).toBe(null);
     });
 
-    it('getCachedReport() should return null if key mismatched', () => {
+    it('getCachedReport() should return null if key mismatched', async () => {
       const key1 = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const key2 = store.getReportCacheKey('2025-02-01', '2025-02-28');
 
@@ -481,13 +481,13 @@ describe('State Mutation Tests', () => {
 
       sessionStorage.setItem('otplus_report_cache', JSON.stringify(cache));
 
-      const retrieved = store.getCachedReport(key2);
+      const retrieved = await store.getCachedReport(key2);
       expect(retrieved).toBe(null);
     });
 
-    it('clearReportCache() should remove cached report', () => {
+    it('clearReportCache() should remove cached report', async () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
-      store.setCachedReport(key, [{ id: 'entry' }]);
+      await store.setCachedReport(key, [{ id: 'entry' }]);
 
       expect(sessionStorage.getItem('otplus_report_cache')).not.toBeNull();
 
@@ -940,7 +940,7 @@ describe('State Mutation Tests', () => {
     });
 
     describe('report cache (session storage)', () => {
-      it('should roundtrip set/get cached report via report cache key', () => {
+      it('should roundtrip set/get cached report via report cache key', async () => {
         const claims = { workspaceId: 'ws_cache', userId: 'user1', backendUrl: 'https://api.clockify.me' };
         store.setToken('token', claims);
 
@@ -948,36 +948,36 @@ describe('State Mutation Tests', () => {
         expect(key).not.toBeNull();
 
         const entries = [{ id: 'e1', userId: 'user1' }];
-        store.setCachedReport(key, entries);
+        await store.setCachedReport(key, entries);
 
-        const loaded = store.getCachedReport(key);
+        const loaded = await store.getCachedReport(key);
         expect(loaded).not.toBeNull();
         expect(loaded).toHaveLength(1);
         expect(loaded[0].id).toBe('e1');
       });
 
-      it('should return null for different cache key', () => {
+      it('should return null for different cache key', async () => {
         const claims = { workspaceId: 'ws_cache2', userId: 'user1', backendUrl: 'https://api.clockify.me' };
         store.setToken('token', claims);
 
         const key1 = store.getReportCacheKey('2025-01-01', '2025-01-31');
-        store.setCachedReport(key1, [{ id: 'e1' }]);
+        await store.setCachedReport(key1, [{ id: 'e1' }]);
 
         const key2 = store.getReportCacheKey('2025-02-01', '2025-02-28');
-        const loaded = store.getCachedReport(key2);
+        const loaded = await store.getCachedReport(key2);
         expect(loaded).toBeNull();
       });
 
-      it('should clear report cache', () => {
+      it('should clear report cache', async () => {
         const claims = { workspaceId: 'ws_cache3', userId: 'user1', backendUrl: 'https://api.clockify.me' };
         store.setToken('token', claims);
 
         const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
-        store.setCachedReport(key, [{ id: 'e1' }]);
+        await store.setCachedReport(key, [{ id: 'e1' }]);
 
         store.clearReportCache();
 
-        const loaded = store.getCachedReport(key);
+        const loaded = await store.getCachedReport(key);
         expect(loaded).toBeNull();
       });
     });

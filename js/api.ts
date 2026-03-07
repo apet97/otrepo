@@ -142,6 +142,7 @@
 import { store } from './state.js';
 import { IsoUtils, classifyError, base64urlDecode } from './utils.js';
 import { DEFAULT_MAX_PAGES, HARD_MAX_PAGES_LIMIT, MAX_ENTRIES_LIMIT } from './constants.js';
+import { splitIntoBatches } from './streaming.js';
 import { createLogger } from './logger.js';
 import { startTimer, incrementCounter, setGauge, MetricNames } from './metrics.js';
 import type {
@@ -1828,12 +1829,9 @@ export const Api = {
         options: FetchOptions = {}
     ): Promise<TimeEntry[]> {
         const results: TimeEntry[] = [];
+        const batches = splitIntoBatches(users, BATCH_SIZE);
 
-        // Stryker disable next-line EqualityOperator: i <= users.length is functionally equivalent (empty batch is no-op)
-        for (let i = 0; i < users.length; i += BATCH_SIZE) {
-            const batch = users.slice(i, i + BATCH_SIZE);
-            // This approach is the legacy per-user fetch flow; kept for backwards compatibility in tests.
-
+        for (const batch of batches) {
             const batchPromises = batch.map((user) =>
                 fetchUserEntriesPaginated(workspaceId, user, startIso, endIso, options)
             );
@@ -1973,9 +1971,7 @@ export const Api = {
         const results = new Map<string, RawProfileResponse>();
         let failedCount = 0;
 
-        // Stryker disable next-line EqualityOperator: i <= users.length is functionally equivalent (empty batch is no-op)
-        for (let i = 0; i < users.length; i += BATCH_SIZE) {
-            const batch = users.slice(i, i + BATCH_SIZE);
+        for (const batch of splitIntoBatches(users, BATCH_SIZE)) {
             const batchPromises = batch.map(async (user) => {
                 const { data, failed } = await this.fetchUserProfile(
                     workspaceId,
@@ -2002,9 +1998,7 @@ export const Api = {
         if (failedUserIds.length > 0 && failedCount > 0) {
             apiLogger.info('Retrying failed profile fetches', { count: failedUserIds.length });
             let retrySuccessCount = 0;
-            // Batch retries using same BATCH_SIZE as initial fetch
-            for (let i = 0; i < failedUserIds.length; i += BATCH_SIZE) {
-                const retryBatch = failedUserIds.slice(i, i + BATCH_SIZE);
+            for (const retryBatch of splitIntoBatches(failedUserIds, BATCH_SIZE)) {
                 const retryPromises = retryBatch.map(async (userId) => {
                     const { data, failed } = await this.fetchUserProfile(
                         workspaceId,
@@ -2117,8 +2111,7 @@ export const Api = {
         } else {
             // Fall back to full per-user fetch for remaining users
             const remainingUsers = users.slice(SAMPLE_SIZE);
-            for (let i = 0; i < remainingUsers.length; i += BATCH_SIZE) {
-                const batch = remainingUsers.slice(i, i + BATCH_SIZE);
+            for (const batch of splitIntoBatches(remainingUsers, BATCH_SIZE)) {
                 const batchPromises = batch.map(async (user) => {
                     const { data, failed } = await this.fetchHolidays(
                         workspaceId, user.id, startIso, endIso, options

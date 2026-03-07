@@ -138,7 +138,7 @@ describe('Main handleGenerateReport cache behavior', () => {
     ];
 
     const cacheKey = store.getReportCacheKey(start, end);
-    store.setCachedReport(cacheKey, entries);
+    await store.setCachedReport(cacheKey, entries);
     uiMock.showCachePrompt.mockResolvedValue('use');
 
     document.getElementById('startDate').value = start;
@@ -171,7 +171,7 @@ describe('Main handleGenerateReport cache behavior', () => {
     ];
 
     const cacheKey = store.getReportCacheKey(start, end);
-    store.setCachedReport(cacheKey, [{ id: 'old_entry' }]);
+    await store.setCachedReport(cacheKey, [{ id: 'old_entry' }]);
     uiMock.showCachePrompt.mockResolvedValue('refresh');
     apiMock.fetchDetailedReport.mockResolvedValue(entries);
     const setCacheSpy = jest.spyOn(store, 'setCachedReport');

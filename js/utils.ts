@@ -618,17 +618,39 @@ export function escapeCsv(str: unknown): string {
  * parseIsoDuration("PT90M")    // → 1.5
  * parseIsoDuration("P1W")      // → 0 (weeks not supported)
  */
+const _parseIsoDurationCache = new Map<string, number>();
+const _classifyEntryCache = new Map<string, EntryClassification>();
+
+/**
+ * Clears all memoization caches.
+ * Call at the start of each calculation to prevent stale data.
+ */
+export function clearMemoizationCaches(): void {
+    _parseIsoDurationCache.clear();
+    _classifyEntryCache.clear();
+}
+
 export function parseIsoDuration(durationStr: string | null | undefined): number {
     if (!durationStr) return 0;
+
+    const cached = _parseIsoDurationCache.get(durationStr);
+    if (cached !== undefined) return cached;
+
     // Support fractional values: PT8.5H, PT30.5M, PT45.5S
     const match = durationStr.match(
         /PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?/
     );
-    if (!match) return 0;
+    if (!match) {
+        _parseIsoDurationCache.set(durationStr, 0);
+        return 0;
+    }
     const hours = parseFloat(match[1] || '0');
     const minutes = parseFloat(match[2] || '0');
     const seconds = parseFloat(match[3] || '0');
-    return hours + minutes / 60 + seconds / 3600;
+    const result = hours + minutes / 60 + seconds / 3600;
+
+    _parseIsoDurationCache.set(durationStr, result);
+    return result;
 }
 
 /**
@@ -916,24 +938,30 @@ interface EntryLike {
 export function classifyEntryForOvertime(entry: EntryLike | null | undefined): EntryClassification {
     if (!entry || !entry.type) return 'work';
 
-    const type = String(entry.type)
+    const typeKey = String(entry.type);
+    const cached = _classifyEntryCache.get(typeKey);
+    if (cached !== undefined) return cached;
+
+    const type = typeKey
         .trim()
         .toUpperCase()
         .replace(/[\s-]+/g, '_');
 
-    if (type === 'BREAK') return 'break';
-    // Normalize various Clockify API constants for non-working entries (PTO/Holiday)
-    if (
+    let result: EntryClassification = 'work';
+    if (type === 'BREAK') {
+        result = 'break';
+    } else if (
         type === 'HOLIDAY' ||
         type === 'TIME_OFF' ||
         type === 'TIMEOFF' ||
         type === 'HOLIDAY_TIME_ENTRY' ||
         type === 'TIME_OFF_TIME_ENTRY'
     ) {
-        return 'pto';
+        result = 'pto';
     }
 
-    return 'work';
+    _classifyEntryCache.set(typeKey, result);
+    return result;
 }
 
 /**

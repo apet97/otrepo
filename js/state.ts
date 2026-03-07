@@ -225,6 +225,38 @@ interface ReportCache {
     entries: TimeEntry[];
 }
 
+/** IndexedDB database name and store for report cache */
+const IDB_NAME = 'otplus_cache';
+const IDB_STORE = 'reports';
+const IDB_VERSION = 1;
+
+/**
+ * Opens (or creates) the IndexedDB database for report caching.
+ * Returns null if IndexedDB is unavailable or blocked.
+ */
+function openCacheDb(): Promise<IDBDatabase | null> {
+    return new Promise((resolve) => {
+        try {
+            if (typeof indexedDB === 'undefined') {
+                resolve(null);
+                return;
+            }
+            const request = indexedDB.open(IDB_NAME, IDB_VERSION);
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                if (!db.objectStoreNames.contains(IDB_STORE)) {
+                    db.createObjectStore(IDB_STORE);
+                }
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => resolve(null);
+            request.onblocked = () => resolve(null);
+        } catch {
+            resolve(null);
+        }
+    });
+}
+
 interface MapCache<T> {
     version: number;
     timestamp: number;
@@ -391,6 +423,11 @@ class Store {
         detailedPage: 1,
         detailedPageSize: 50,
         activeDetailedFilter: 'all',
+        summaryPage: 1,
+        summaryPageSize: 100,
+        overridesPage: 1,
+        overridesPageSize: 50,
+        overridesSearch: '',
         hasCostRates: true,
         hasAmountRates: true,
         paginationTruncated: false,
@@ -1609,25 +1646,46 @@ class Store {
      * @see setCachedReport() - Store data in cache
      * @see REPORT_CACHE_TTL in constants.ts - Cache expiration time
      */
-    getCachedReport(key: string): TimeEntry[] | null {
+    async getCachedReport(key: string): Promise<TimeEntry[] | null> {
+        // Try IndexedDB first
+        try {
+            const db = await openCacheDb();
+            if (db) {
+                const result = await new Promise<ReportCache | null>((resolve) => {
+                    try {
+                        const tx = db.transaction(IDB_STORE, 'readonly');
+                        const store = tx.objectStore(IDB_STORE);
+                        const req = store.get(key);
+                        req.onsuccess = () => resolve(req.result ?? null);
+                        req.onerror = () => resolve(null);
+                    } catch {
+                        resolve(null);
+                    }
+                });
+                db.close();
+                if (result && result.key === key && Date.now() - result.timestamp <= REPORT_CACHE_TTL) {
+                    return result.entries;
+                }
+                // IDB had no match; fall through (don't check sessionStorage)
+                return null;
+            }
+        } catch {
+            // IndexedDB unavailable; fall through to sessionStorage
+        }
+
+        // Fallback: sessionStorage (legacy path)
         try {
             const cached = safeSessionGetItem(STORAGE_KEYS.REPORT_CACHE);
             if (!cached) return null;
 
-            // Parse cached data; return null if corrupted
             const cache = safeJSONParse<ReportCache | null>(cached, null);
             if (!cache) return null;
 
-            // Check if cache matches the requested key
             if (cache.key !== key) return null;
-
-            // Check if cache has expired
             if (Date.now() - cache.timestamp > REPORT_CACHE_TTL) return null;
 
-            // Cache is valid; return the cached entries
             return cache.entries;
         } catch {
-            // Swallow any errors; treat as cache miss
             return null;
         }
     }
@@ -1657,14 +1715,37 @@ class Store {
      * @see getCachedReport() - Retrieve cached data
      * @see REPORT_CACHE_TTL in constants.ts - Cache expiration time
      */
-    setCachedReport(key: string, entries: TimeEntry[]): void {
+    async setCachedReport(key: string, entries: TimeEntry[]): Promise<void> {
+        const cache: ReportCache = {
+            key,
+            timestamp: Date.now(),
+            entries,
+        };
+
+        // Try IndexedDB first
         try {
-            const cache: ReportCache = {
-                key,
-                timestamp: Date.now(),
-                entries,
-            };
-            // Store cache in sessionStorage (temporary, session-scoped)
+            const db = await openCacheDb();
+            if (db) {
+                await new Promise<void>((resolve, reject) => {
+                    try {
+                        const tx = db.transaction(IDB_STORE, 'readwrite');
+                        const objStore = tx.objectStore(IDB_STORE);
+                        const req = objStore.put(cache, key);
+                        req.onsuccess = () => resolve();
+                        req.onerror = () => reject(req.error);
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+                db.close();
+                return;
+            }
+        } catch (e) {
+            stateLogger.warn('IndexedDB cache write failed, falling back to sessionStorage:', e);
+        }
+
+        // Fallback: sessionStorage
+        try {
             const stored = safeSessionSetItem(
                 STORAGE_KEYS.REPORT_CACHE,
                 JSON.stringify(cache)
@@ -1673,7 +1754,6 @@ class Store {
                 stateLogger.warn('Failed to cache report data:', new Error('sessionStorage unavailable'));
             }
         } catch (e) {
-            // Silently fail if quota exceeded; report still works, just without cache
             stateLogger.warn('Failed to cache report data:', e);
         }
     }
@@ -1826,6 +1906,11 @@ class Store {
             detailedPage: 1,
             detailedPageSize: 50,
             activeDetailedFilter: 'all',
+            summaryPage: 1,
+            summaryPageSize: 100,
+            overridesPage: 1,
+            overridesPageSize: 50,
+            overridesSearch: '',
             hasCostRates: true,
             hasAmountRates: true,
             paginationTruncated: false,

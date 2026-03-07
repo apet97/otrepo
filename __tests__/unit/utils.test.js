@@ -12,6 +12,8 @@ import {
   formatHours,
   IsoUtils,
   classifyEntryForOvertime,
+  parseIsoDuration,
+  clearMemoizationCaches,
   base64urlDecode,
   isValidTimeZone,
   setCanonicalTimeZone,
@@ -2031,5 +2033,75 @@ describe('base64urlDecode', () => {
     const payload = 'eyJ3b3Jrc3BhY2VJZCI6IndzXzEyMyIsInRoZW1lIjoiREFSSyJ9';
     const decoded = JSON.parse(base64urlDecode(payload));
     expect(decoded).toEqual({ workspaceId: 'ws_123', theme: 'DARK' });
+  });
+});
+
+describe('Memoization caches', () => {
+  beforeEach(() => {
+    clearMemoizationCaches();
+  });
+
+  it('parseIsoDuration returns same result on cache hit', () => {
+    const first = parseIsoDuration('PT8H');
+    const second = parseIsoDuration('PT8H');
+    expect(first).toBe(8);
+    expect(second).toBe(8);
+    expect(first).toBe(second);
+  });
+
+  it('parseIsoDuration caches zero for non-matching strings', () => {
+    const first = parseIsoDuration('INVALID');
+    const second = parseIsoDuration('INVALID');
+    expect(first).toBe(0);
+    expect(second).toBe(0);
+  });
+
+  it('parseIsoDuration returns 0 for null/undefined without caching', () => {
+    expect(parseIsoDuration(null)).toBe(0);
+    expect(parseIsoDuration(undefined)).toBe(0);
+    expect(parseIsoDuration('')).toBe(0);
+  });
+
+  it('classifyEntryForOvertime returns cached result for same type', () => {
+    const entry = { type: 'BREAK' };
+    const first = classifyEntryForOvertime(entry);
+    const second = classifyEntryForOvertime(entry);
+    expect(first).toBe('break');
+    expect(second).toBe('break');
+  });
+
+  it('classifyEntryForOvertime returns work for null/undefined without caching', () => {
+    expect(classifyEntryForOvertime(null)).toBe('work');
+    expect(classifyEntryForOvertime(undefined)).toBe('work');
+    expect(classifyEntryForOvertime({ type: undefined })).toBe('work');
+  });
+
+  it('classifyEntryForOvertime caches PTO types', () => {
+    expect(classifyEntryForOvertime({ type: 'HOLIDAY' })).toBe('pto');
+    expect(classifyEntryForOvertime({ type: 'HOLIDAY' })).toBe('pto');
+    expect(classifyEntryForOvertime({ type: 'TIME_OFF' })).toBe('pto');
+    expect(classifyEntryForOvertime({ type: 'TIME_OFF' })).toBe('pto');
+  });
+
+  it('clearMemoizationCaches resets both caches', () => {
+    // Populate caches
+    parseIsoDuration('PT1H');
+    classifyEntryForOvertime({ type: 'BREAK' });
+
+    // Clear
+    clearMemoizationCaches();
+
+    // Results should still be correct after clear (just recomputed)
+    expect(parseIsoDuration('PT1H')).toBe(1);
+    expect(classifyEntryForOvertime({ type: 'BREAK' })).toBe('break');
+  });
+
+  it('caches are independent per unique input', () => {
+    expect(parseIsoDuration('PT1H')).toBe(1);
+    expect(parseIsoDuration('PT2H')).toBe(2);
+    expect(parseIsoDuration('PT30M')).toBe(0.5);
+    // Verify originals still correct
+    expect(parseIsoDuration('PT1H')).toBe(1);
+    expect(parseIsoDuration('PT2H')).toBe(2);
   });
 });
