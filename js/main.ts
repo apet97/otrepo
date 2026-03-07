@@ -162,7 +162,7 @@ import {
     validateInputBounds,
 } from './utils.js';
 import { initErrorReporting, reportError } from './error-reporting.js';
-import { SENTRY_DSN } from './constants.js';
+import { SENTRY_DSN, REPORT_GENERATION_TIMEOUT_MS } from './constants.js';
 import { initCSPReporter } from './csp-reporter.js';
 import { startTimer, incrementCounter, MetricNames } from './metrics.js';
 import { createWorkerPool, WorkerPool } from './worker-pool.js';
@@ -1942,6 +1942,12 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
     abortController = new AbortController();
     const { signal } = abortController;
 
+    // Total report generation timeout (M1) — auto-abort after 5 minutes
+    const reportTimeoutId = setTimeout(() => {
+        abortController?.abort();
+    }, REPORT_GENERATION_TIMEOUT_MS);
+    const clearReportTimeout = () => clearTimeout(reportTimeoutId);
+
     // Increment request ID to detect stale responses
     // Before updating UI, we check if thisRequestId === currentRequestId
     // Stale responses (from a cancelled request that somehow completed) are ignored
@@ -1951,6 +1957,10 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
     // Reset pagination flags for new report generation
     store.ui.paginationTruncated = false;
     store.ui.paginationAbortedDueToTokenExpiration = false;
+
+    // Null-out old data early to allow GC during fetch (L3)
+    store.rawEntries = null;
+    store.analysisResults = null;
 
     // ===== Extract and Validate Dates =====
     const startDateEl = document.getElementById('startDate') as HTMLInputElement | null;
@@ -1988,15 +1998,13 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
         return;
     }
 
-    // ===== Large Date Range Safeguard =====
-    // Date ranges > 365 days trigger a warning because:
-    // - More API calls needed (paginated through ~1000+ entries)
-    // - More calculation time (per-day breakdown for 365+ days)
-    // - Higher likelihood of hitting rate limits
-    // See docs/spec.md "Performance requirements" for performance targets
+    // ===== Large Date Range Safeguard (M6: considers user count) =====
+    // Warn based on user-days product, not just days alone.
+    // 30 days × 1500 users = 45K user-days generates more data than 400 days × 5 users.
     const rangeDays = getDateRangeDays(startDate, endDate);
-    if (rangeDays > 365) {
-        const confirmed = await UI.showLargeDateRangeWarning(rangeDays);
+    const userDays = rangeDays * store.users.length;
+    if (rangeDays > 365 || userDays > 50_000) {
+        const confirmed = await UI.showLargeDateRangeWarning(rangeDays, store.users.length);
         if (!confirmed) {
             return; // User cancelled large range
         }
@@ -2011,7 +2019,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
     // This improves UX for rapid regenerations (e.g., config changes)
     const cacheKey = store.getReportCacheKey(startDate, endDate);
     let useCachedData = false;
-    let cachedEntries: typeof store.rawEntries = null;
+    let cachedEntries: TimeEntry[] | null = null;
 
     if (cacheKey && !forceRefresh) {
         // Check if we have a cached report for this date range
@@ -2082,7 +2090,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                     name: 'profiles',
                     promise: Api.fetchAllProfiles(store.claims.workspaceId, missingUsers, {
                         signal,
-                        onProgress: (fetched, phase) => UI.updateLoadingProgress(fetched, phase),
+                        onProgress: (fetched, phase) => UI.updateLoadingProgress(fetched, phase, missingUsers.length),
                     }).then((profiles) => {
                         // Guard: Discard stale responses from cancelled requests
                         // This prevents race conditions where a slow response from an aborted
@@ -2126,7 +2134,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                         missingUsers,
                         startDate,
                         endDate,
-                        { signal, onProgress: (fetched, phase) => UI.updateLoadingProgress(fetched, phase) }
+                        { signal, onProgress: (fetched, phase) => UI.updateLoadingProgress(fetched, phase, missingUsers.length) }
                     ).then((holidays) => {
                         // Guard: Discard stale responses from cancelled requests
                         // This prevents race conditions where a slow response from an aborted
@@ -2183,7 +2191,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                         missingUsers,
                         startDate,
                         endDate,
-                        { signal }
+                        { signal, onProgress: (fetched, phase) => UI.updateLoadingProgress(fetched, phase, missingUsers.length) }
                     ).then((timeOff) => {
                         // Guard: Discard stale responses from cancelled requests
                         // This prevents race conditions where a slow response from an aborted
@@ -2324,6 +2332,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
         });
     } finally {
         // ===== Cleanup =====
+        clearReportTimeout();
         // Only the latest in-flight request owns global loading + controller cleanup.
         // Stale requests must not clear indicators or controller state for newer requests.
         if (thisRequestId === currentRequestId) {
@@ -2386,9 +2395,11 @@ async function initCalculationWorker(): Promise<boolean> {
     if (!isWorkerSupported()) return false;
 
     try {
+        // H1: poolSize=1 since we dispatch a single task (no sharding).
+        // This avoids wasting ~5-10 MB per idle worker.
         calculationWorkerPool = await createWorkerPool<WorkerPayload, WorkerResult>(
             'js/calc.worker.js',
-            { poolSize: Math.min(navigator.hardwareConcurrency || 4, 4), maxQueueSize: 10, taskTimeout: 120000, autoRestart: true }
+            { poolSize: 1, maxQueueSize: 10, taskTimeout: 120000, autoRestart: true }
         );
         store.diagnostics = {
             ...store.diagnostics,
@@ -2547,14 +2558,18 @@ export function runCalculation(dateRange?: DateRange): void {
     // Ensure entries exist (should always be true at this point)
     const entries = store.rawEntries ?? [];
 
-    // Check if we should use worker for large datasets
-    const shouldUseWorker = isWorkerSupported() && entries.length > WORKER_THRESHOLD;
+    // Check if we should use worker for large datasets.
+    // H2: Skip worker for config-only changes (no dateRange passed) to avoid
+    // re-serializing entries via postMessage. Entries are already in memory.
+    const isConfigOnlyChange = !dateRange;
+    const shouldUseWorker = isWorkerSupported() && entries.length > WORKER_THRESHOLD && !isConfigOnlyChange;
 
     if (shouldUseWorker) {
-        // Large dataset: use worker to keep UI responsive
+        // Large dataset with fresh entries: use worker to keep UI responsive
         runCalculationAsync(entries, effectiveDateRange, thisCalculationId);
     } else {
-        // Small dataset: run synchronously on main thread
+        // Small dataset or config-only change: run synchronously on main thread (H3)
+        UI.updateLoadingProgress(0, 'Calculating', entries.length);
         const calcTimer = startTimer(MetricNames.CALC_DURATION);
         const analysis = calculateAnalysis(entries, store, effectiveDateRange);
         calcTimer.end();
@@ -2593,9 +2608,11 @@ async function runCalculationAsync(
 
         if (workerReady && calculationWorkerPool) {
             // Run in worker
+            UI.updateLoadingProgress(0, 'Calculating (worker)', entries.length);
             analysis = await runCalculationInWorker(entries, dateRange);
         } else {
-            // Worker failed, fall back to main thread
+            // Worker failed, fall back to main thread (H3)
+            UI.updateLoadingProgress(0, 'Calculating', entries.length);
             analysis = calculateAnalysis(entries, store, dateRange);
         }
 
@@ -2621,7 +2638,8 @@ async function runCalculationAsync(
             return;
         }
 
-        // Fallback to sync calculation
+        // Fallback to sync calculation (H3: show progress)
+        UI.updateLoadingProgress(0, 'Calculating (fallback)', entries.length);
         const analysis = calculateAnalysis(entries, store, dateRange);
         incrementCounter(MetricNames.CALC_ENTRY_COUNT, entries.length);
         incrementCounter(MetricNames.CALC_USER_COUNT, analysis.length);

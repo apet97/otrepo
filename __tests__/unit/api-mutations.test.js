@@ -176,8 +176,8 @@ describe('API Module - Mutation Test Coverage', () => {
     });
 
     it('should propagate identical holidays and fallback on different results', async () => {
-      // With 7 users returning identical results: 5 sampled, 2 propagated = 5 calls
-      const users = generateMockUsers(7);
+      // With 25 users returning identical results: 20 sampled, 5 propagated = 20 calls
+      const users = generateMockUsers(25);
       let callCount = 0;
 
       fetch.mockImplementation(() => {
@@ -187,9 +187,9 @@ describe('API Module - Mutation Test Coverage', () => {
 
       const results = await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31');
 
-      // Dedup: 5 sample calls, 2 propagated (identical empty results)
-      expect(callCount).toBe(5);
-      expect(results.size).toBe(7);
+      // Dedup: 20 sample calls (min(max(20, ceil(25*0.1)), 25) = 20), 5 propagated
+      expect(callCount).toBe(20);
+      expect(results.size).toBe(25);
     });
   });
 

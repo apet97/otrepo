@@ -935,6 +935,11 @@ interface EntryLike {
  * @param entry - Time entry object with a `type` field.
  * @returns Entry classification.
  */
+/**
+ * @note Cache key is based ONLY on entry.type. If classification logic
+ * is modified to consider other entry fields, the cache key MUST
+ * be updated to include those fields.
+ */
 export function classifyEntryForOvertime(entry: EntryLike | null | undefined): EntryClassification {
     if (!entry || !entry.type) return 'work';
 

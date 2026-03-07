@@ -1152,7 +1152,10 @@ describe('Detailed Table UI Module', () => {
       const container = document.getElementById('detailedTableContainer');
       expect(container.innerHTML).toContain('Page 1 of 3');
       const paginationBtns = container.querySelectorAll('.pagination-btn');
-      const prevBtn = paginationBtns[0];
+      // With First/Prev/Next/Last buttons: First is at index 0, Prev at index 1
+      const firstBtn = paginationBtns[0];
+      const prevBtn = paginationBtns[1];
+      expect(firstBtn.disabled).toBe(true);
       expect(prevBtn.disabled).toBe(true);
     });
 
@@ -1186,8 +1189,11 @@ describe('Detailed Table UI Module', () => {
       const container = document.getElementById('detailedTableContainer');
       expect(container.innerHTML).toContain('Page 3 of 3');
       const paginationBtns = container.querySelectorAll('.pagination-btn');
-      const nextBtn = paginationBtns[1];
+      // With First/Prev/Next/Last buttons: Next is at index 2, Last at index 3
+      const nextBtn = paginationBtns[2];
+      const lastBtn = paginationBtns[3];
       expect(nextBtn.disabled).toBe(true);
+      expect(lastBtn.disabled).toBe(true);
     });
 
     it('should not add duplicate tag when entry type matches day context (line 217)', () => {

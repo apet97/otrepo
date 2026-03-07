@@ -27,6 +27,20 @@ import {
 const SWATCH_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 const SWATCH_FALLBACK_COLOR = '#64748b';
 
+// === Summary rows cache (H5) — avoids recomputing on every pagination click ===
+let _cachedSummaryRows: SummaryRow[] | null = null;
+let _cachedSummaryUsersRef: UserAnalysis[] | null = null;
+let _cachedSummaryGroupBy: string | null = null;
+
+function getCachedSummaryRows(users: UserAnalysis[], groupBy: string): SummaryRow[] {
+    if (_cachedSummaryUsersRef !== users || _cachedSummaryGroupBy !== groupBy || _cachedSummaryRows === null) {
+        _cachedSummaryRows = computeSummaryRows(users, groupBy);
+        _cachedSummaryUsersRef = users;
+        _cachedSummaryGroupBy = groupBy;
+    }
+    return _cachedSummaryRows;
+}
+
 /**
  * Renders the high-level summary strip (Totals).
  * Aggregates data from all processed users to display global metrics.
@@ -626,8 +640,8 @@ export function renderSummaryTable(users: UserAnalysis[]): void {
     const showBoth = store.config.overtimeBasis === 'both';
     const showAmounts = store.ui.hasAmountRates !== false;
 
-    // Compute grouped rows
-    const rows = computeSummaryRows(users, groupBy);
+    // Compute grouped rows (cached — only recomputes when users or groupBy changes)
+    const rows = getCachedSummaryRows(users, groupBy);
 
     // Pagination
     /* istanbul ignore next -- defensive: pageSize and page are always set by UI */

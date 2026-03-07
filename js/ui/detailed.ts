@@ -395,13 +395,15 @@ export function renderDetailedTable(
 
     html += `</tbody></table></div>`;
 
-    // Pagination Controls
+    // Pagination Controls (M7: added First/Last buttons matching summary.ts pattern)
     if (totalPages > 1) {
         html += `
       <div class="pagination-controls" style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:16px;">
-          <button class="btn-secondary btn-sm pagination-btn" ${page === 1 ? 'disabled' : ''} data-page="${page - 1}">Previous</button>
+          <button class="btn-secondary btn-sm pagination-btn" ${page === 1 ? 'disabled' : ''} data-page="1" title="First page">First</button>
+          <button class="btn-secondary btn-sm pagination-btn" ${page === 1 ? 'disabled' : ''} data-page="${page - 1}" title="Previous page">Previous</button>
           <span style="font-size:12px; color:var(--text-secondary);">Page ${page} of ${totalPages}</span>
-          <button class="btn-secondary btn-sm pagination-btn" ${page === totalPages ? 'disabled' : ''} data-page="${page + 1}">Next</button>
+          <button class="btn-secondary btn-sm pagination-btn" ${page === totalPages ? 'disabled' : ''} data-page="${page + 1}" title="Next page">Next</button>
+          <button class="btn-secondary btn-sm pagination-btn" ${page === totalPages ? 'disabled' : ''} data-page="${totalPages}" title="Last page">Last</button>
       </div>`;
     }
 

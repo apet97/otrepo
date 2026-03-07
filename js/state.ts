@@ -93,6 +93,8 @@ import { createLogger } from './logger.js';
 import {
     storeEncrypted,
     retrieveEncrypted,
+    encryptData,
+    decryptData,
     isEncryptionSupported,
     deriveEncryptionKey,
     deriveLegacyEncryptionKey,
@@ -1647,15 +1649,16 @@ class Store {
      * @see REPORT_CACHE_TTL in constants.ts - Cache expiration time
      */
     async getCachedReport(key: string): Promise<TimeEntry[] | null> {
-        // Try IndexedDB first
+        // Try IndexedDB first (H4: decrypt if encrypted)
         try {
             const db = await openCacheDb();
             if (db) {
-                const result = await new Promise<ReportCache | null>((resolve) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const result = await new Promise<any | null>((resolve) => {
                     try {
                         const tx = db.transaction(IDB_STORE, 'readonly');
-                        const store = tx.objectStore(IDB_STORE);
-                        const req = store.get(key);
+                        const objStore = tx.objectStore(IDB_STORE);
+                        const req = objStore.get(key);
                         req.onsuccess = () => resolve(req.result ?? null);
                         req.onerror = () => resolve(null);
                     } catch {
@@ -1664,7 +1667,13 @@ class Store {
                 });
                 db.close();
                 if (result && result.key === key && Date.now() - result.timestamp <= REPORT_CACHE_TTL) {
-                    return result.entries;
+                    // Check if data is encrypted
+                    if (result.encrypted && this.encryptionKey) {
+                        const decrypted = await decryptData(result.encrypted as EncryptedData, this.encryptionKey);
+                        return JSON.parse(decrypted) as TimeEntry[];
+                    }
+                    // Unencrypted (legacy) or no encryption key
+                    return (result as ReportCache).entries;
                 }
                 // IDB had no match; fall through (don't check sessionStorage)
                 return null;
@@ -1716,21 +1725,36 @@ class Store {
      * @see REPORT_CACHE_TTL in constants.ts - Cache expiration time
      */
     async setCachedReport(key: string, entries: TimeEntry[]): Promise<void> {
+        // Skip caching for very large datasets that would exceed storage quotas (M2)
+        const MAX_CACHEABLE_ENTRIES = 100_000;
+        if (entries.length > MAX_CACHEABLE_ENTRIES) {
+            stateLogger.info('Skipping cache: dataset too large', { count: entries.length, limit: MAX_CACHEABLE_ENTRIES });
+            return;
+        }
+
         const cache: ReportCache = {
             key,
             timestamp: Date.now(),
             entries,
         };
 
-        // Try IndexedDB first
+        // Try IndexedDB first (H4: encrypt PII before storage)
         try {
             const db = await openCacheDb();
             if (db) {
+                let storageData: ReportCache | { key: string; timestamp: number; encrypted: EncryptedData };
+                if (this.encryptionKey && isEncryptionSupported()) {
+                    const serialized = JSON.stringify(entries);
+                    const encrypted = await encryptData(serialized, this.encryptionKey);
+                    storageData = { key, timestamp: Date.now(), encrypted };
+                } else {
+                    storageData = cache;
+                }
                 await new Promise<void>((resolve, reject) => {
                     try {
                         const tx = db.transaction(IDB_STORE, 'readwrite');
                         const objStore = tx.objectStore(IDB_STORE);
-                        const req = objStore.put(cache, key);
+                        const req = objStore.put(storageData, key);
                         req.onsuccess = () => resolve();
                         req.onerror = () => reject(req.error);
                     } catch (e) {

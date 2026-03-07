@@ -195,6 +195,18 @@ export const HARD_MAX_PAGES_LIMIT = 5000;
 export const MAX_ENTRIES_LIMIT = 1_000_000;
 
 /**
+ * Per-request timeout in milliseconds (B3).
+ * Individual fetch calls abort after this duration to prevent one slow request from blocking a batch.
+ */
+export const PER_REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Total report generation timeout in milliseconds (M1).
+ * Auto-aborts the entire report generation flow after this duration.
+ */
+export const REPORT_GENERATION_TIMEOUT_MS = 300_000;
+
+/**
  * Summary column definition
  */
 export interface SummaryColumn {

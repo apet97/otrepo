@@ -245,8 +245,8 @@ describe('API Holidays - Batch Processing Mutations', () => {
     });
 
     it('should propagate identical holidays from sample to remaining users', async () => {
-      // With 7 users: 5 sampled, all identical → 2 propagated (5 calls, not 7)
-      const users = generateMockUsers(7);
+      // With 25 users: 20 sampled, all identical → 5 propagated (20 calls, not 25)
+      const users = generateMockUsers(25);
       let callCount = 0;
 
       fetch.mockImplementation(() => {
@@ -256,10 +256,10 @@ describe('API Holidays - Batch Processing Mutations', () => {
 
       const results = await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31');
 
-      // 5 sample calls, 2 propagated (identical empty results)
-      expect(callCount).toBe(5);
-      // All 7 users should have results
-      expect(results.size).toBe(7);
+      // 20 sample calls (min(max(20, ceil(25*0.1)), 25) = 20), 5 propagated
+      expect(callCount).toBe(20);
+      // All 25 users should have results
+      expect(results.size).toBe(25);
     });
 
     it('should fallback to full fetch when sample results differ', async () => {
@@ -334,11 +334,16 @@ describe('API Holidays - Batch Processing Mutations', () => {
   describe('Map Operations', () => {
     it('should store holiday data in results map', async () => {
       const users = generateMockUsers(2);
-      const holidays1 = [{ name: 'H1', datePeriod: { startDate: '2025-01-01T00:00:00Z' } }];
-      const holidays2 = [{ name: 'H2', datePeriod: { startDate: '2025-01-15T00:00:00Z' } }];
+      const holidaysByUser = {
+        user0: [{ name: 'H1', datePeriod: { startDate: '2025-01-01T00:00:00Z' } }],
+        user1: [{ name: 'H2', datePeriod: { startDate: '2025-01-15T00:00:00Z' } }],
+      };
 
-      fetch.mockResolvedValueOnce(mockResponse(holidays1));
-      fetch.mockResolvedValueOnce(mockResponse(holidays2));
+      // Use URL-based mock to handle random sample ordering (B4)
+      fetch.mockImplementation((url) => {
+        const userId = url.includes('user0') ? 'user0' : 'user1';
+        return Promise.resolve(mockResponse(holidaysByUser[userId]));
+      });
 
       const results = await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31');
 
@@ -374,8 +379,13 @@ describe('API Holidays - Batch Processing Mutations', () => {
     it('should not store data for failed requests', async () => {
       const users = generateMockUsers(2);
 
-      fetch.mockResolvedValueOnce(mockResponse(null, { ok: false, status: 403 }));
-      fetch.mockResolvedValueOnce(mockResponse([{ name: 'H1', datePeriod: { startDate: '2025-01-01T00:00:00Z' } }]));
+      // Use URL-based mock to handle random sample ordering (B4)
+      fetch.mockImplementation((url) => {
+        if (url.includes('user0')) {
+          return Promise.resolve(mockResponse(null, { ok: false, status: 403 }));
+        }
+        return Promise.resolve(mockResponse([{ name: 'H1', datePeriod: { startDate: '2025-01-01T00:00:00Z' } }]));
+      });
 
       const results = await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31');
 

@@ -65,9 +65,9 @@
  * - `pageSize` parameter: items per page (500 max for performance)
  * - Safety limit: 50 pages max (prevents runaway pagination on huge datasets)
  *
- * **Cursor-based** (Holidays):
- * - `pageToken` parameter: continuation token from previous response
- * - Automatically follows `nextPageToken` until exhausted
+ * **Single-request** (Holidays):
+ * - GET request per user, no pagination
+ * - Sample-based deduplication for large workspaces
  *
  * **Batch** (Profiles, Time Off):
  * - Process multiple users concurrently (5 users per batch)
@@ -141,7 +141,7 @@
 
 import { store } from './state.js';
 import { IsoUtils, classifyError, base64urlDecode } from './utils.js';
-import { DEFAULT_MAX_PAGES, HARD_MAX_PAGES_LIMIT, MAX_ENTRIES_LIMIT } from './constants.js';
+import { DEFAULT_MAX_PAGES, HARD_MAX_PAGES_LIMIT, MAX_ENTRIES_LIMIT, PER_REQUEST_TIMEOUT_MS } from './constants.js';
 import { splitIntoBatches } from './streaming.js';
 import { createLogger } from './logger.js';
 import { startTimer, incrementCounter, setGauge, MetricNames } from './metrics.js';
@@ -1154,9 +1154,10 @@ async function fetchWithAuth<T>(
         }
     }
 
-    // Check circuit breaker before making request
+    // Check circuit breaker before making request (M10: surface status to user)
     if (!canMakeRequest()) {
-        console.warn('Circuit breaker open: Request blocked');
+        apiLogger.warn('Circuit breaker open: Request blocked');
+        store.apiStatus.circuitBreakerOpen = true;
         incrementCounter(MetricNames.API_ERROR_COUNT);
         return { data: null, failed: true, status: 503 };
     }
@@ -1184,6 +1185,7 @@ async function fetchWithAuth<T>(
     incrementCounter(MetricNames.API_REQUEST_COUNT);
 
     for (let attempt = 0; attempt <= retries; attempt++) {
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
             // Merge auth headers with any caller-provided overrides, ensuring JSON responses are accepted
             const headers: Record<string, string> = {
@@ -1210,8 +1212,27 @@ async function fetchWithAuth<T>(
                 }
             }
 
+            // Compose per-request timeout with caller's abort signal (B3)
+            // Uses AbortSignal.any() if available, otherwise falls back to manual AbortController
+            let requestSignal: AbortSignal;
+            const callerSignal = options.signal;
+            if (typeof AbortSignal.any === 'function' && typeof AbortSignal.timeout === 'function') {
+                const signals: AbortSignal[] = [AbortSignal.timeout(PER_REQUEST_TIMEOUT_MS)];
+                if (callerSignal) signals.push(callerSignal);
+                requestSignal = AbortSignal.any(signals);
+            } else {
+                // Fallback for older browsers
+                const timeoutController = new AbortController();
+                timeoutId = setTimeout(() => timeoutController.abort(), PER_REQUEST_TIMEOUT_MS);
+                if (callerSignal) {
+                    callerSignal.addEventListener('abort', () => timeoutController.abort(), { once: true });
+                }
+                requestSignal = timeoutController.signal;
+            }
+
             // Fire the HTTP request using the Clockify backend proxy defined in the addon claims
-            const response = await fetch(url, { ...options, headers, signal: options.signal });
+            const response = await fetch(url, { ...options, headers, signal: requestSignal });
+            if (timeoutId) clearTimeout(timeoutId);
 
             // 401/403/404 are non-retryable errors
             // These status codes indicate invalid tokens/permissions or missing resources—do not retry
@@ -1336,7 +1357,15 @@ async function fetchWithAuth<T>(
             apiTimer.end();
             return { data: (await response.json()) as T, failed: false, status: response.status };
         } catch (error) {
+            if (timeoutId) clearTimeout(timeoutId);
             const err = error as Error & { status?: number };
+
+            // Early return for AbortError — user-initiated cancellation should not retry (M11)
+            if (err.name === 'AbortError') {
+                apiTimer.end();
+                return { data: null, failed: true, status: 0 };
+            }
+
             const errorType = classifyError(error);
 
             // Don't retry auth errors (invalid token) or validation errors (bad request)
@@ -1972,6 +2001,11 @@ export const Api = {
         let failedCount = 0;
 
         for (const batch of splitIntoBatches(users, BATCH_SIZE)) {
+            // Early termination when circuit breaker opens (L1)
+            if (!canMakeRequest()) {
+                apiLogger.warn('Circuit breaker open, terminating profile batch early');
+                break;
+            }
             const batchPromises = batch.map(async (user) => {
                 const { data, failed } = await this.fetchUserProfile(
                     workspaceId,
@@ -2064,53 +2098,68 @@ export const Api = {
                 projectId: h.projectId,
             }));
 
-        // === OPTIMIZATION: Sample-and-propagate for workspace-wide holidays ===
-        const SAMPLE_SIZE = Math.min(5, users.length);
-        const sampleUsers = users.slice(0, SAMPLE_SIZE);
+        // === OPTIMIZATION: Sample-and-propagate for workspace-wide holidays (B4) ===
+        // Use random sampling with larger size to avoid multi-country bias.
+        // Group by holiday pattern hash so users in different countries get correct holidays.
+        const SAMPLE_SIZE = Math.min(Math.max(20, Math.ceil(users.length * 0.1)), users.length);
+        // Fisher-Yates partial shuffle for random sample
+        const shuffled = [...users];
+        for (let i = shuffled.length - 1; i > shuffled.length - 1 - SAMPLE_SIZE && i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        const sampleUsers = shuffled.slice(shuffled.length - SAMPLE_SIZE);
 
-        // Fetch sample concurrently
-        const samplePromises = sampleUsers.map(async (user) => {
-            const { data, failed } = await this.fetchHolidays(
-                workspaceId, user.id, startIso, endIso, options
-            );
-            return { userId: user.id, data, failed };
-        });
-        const sampleResults = await Promise.all(samplePromises);
+        // Fetch sample concurrently in batches
+        const holidayPatterns = new Map<string, Holiday[]>(); // hash -> holidays
+        const userPatternMap = new Map<string, string>(); // userId -> hash
+        const sampledUserIds = new Set<string>();
 
-        let allSampleIdentical = true;
-        let referenceHolidays: Holiday[] | null = null;
-
-        for (const result of sampleResults) {
-            if (result.failed) {
-                failedCount++;
-                allSampleIdentical = false;
-            } else {
-                const normalized = result.data ? normalizeHolidays(result.data) : [];
-                results.set(result.userId, normalized);
-
-                if (referenceHolidays === null) {
-                    referenceHolidays = normalized;
-                } else if (JSON.stringify(normalized) !== JSON.stringify(referenceHolidays)) {
-                    allSampleIdentical = false;
+        for (const batch of splitIntoBatches(sampleUsers, BATCH_SIZE)) {
+            const batchPromises = batch.map(async (user) => {
+                const { data, failed } = await this.fetchHolidays(
+                    workspaceId, user.id, startIso, endIso, options
+                );
+                return { userId: user.id, data, failed };
+            });
+            const batchResults = await Promise.all(batchPromises);
+            for (const result of batchResults) {
+                sampledUserIds.add(result.userId);
+                if (result.failed) {
+                    failedCount++;
+                } else {
+                    const normalized = result.data ? normalizeHolidays(result.data) : [];
+                    results.set(result.userId, normalized);
+                    const hash = JSON.stringify(normalized);
+                    userPatternMap.set(result.userId, hash);
+                    if (!holidayPatterns.has(hash)) {
+                        holidayPatterns.set(hash, normalized);
+                    }
                 }
+            }
+            if (options.onProgress) {
+                options.onProgress(results.size, 'holidays');
             }
         }
 
-        // If all samples are identical, propagate to remaining users
-        if (allSampleIdentical && referenceHolidays !== null && users.length > SAMPLE_SIZE) {
+        // If only ONE pattern found across all samples, propagate to remaining users
+        if (holidayPatterns.size === 1 && users.length > SAMPLE_SIZE) {
+            const [, referenceHolidays] = [...holidayPatterns.entries()][0];
             apiLogger.info('Holiday deduplication: propagating identical holidays', {
                 sampleSize: SAMPLE_SIZE,
                 propagatedTo: users.length - SAMPLE_SIZE,
             });
-            for (let i = SAMPLE_SIZE; i < users.length; i++) {
-                results.set(users[i].id, [...referenceHolidays]);
+            for (const user of users) {
+                if (!sampledUserIds.has(user.id)) {
+                    results.set(user.id, [...referenceHolidays]);
+                }
             }
             if (options.onProgress) {
                 options.onProgress(results.size, 'holidays');
             }
         } else {
-            // Fall back to full per-user fetch for remaining users
-            const remainingUsers = users.slice(SAMPLE_SIZE);
+            // Multiple patterns or failures — fetch all remaining users individually
+            const remainingUsers = users.filter((u) => !sampledUserIds.has(u.id));
             for (const batch of splitIntoBatches(remainingUsers, BATCH_SIZE)) {
                 const batchPromises = batch.map(async (user) => {
                     const { data, failed } = await this.fetchHolidays(
@@ -2153,7 +2202,6 @@ export const Api = {
         endDate: string,
         options: FetchOptions = {}
     ): Promise<Map<string, Map<string, TimeOffInfo>>> {
-        const userIds = users.map((u) => u.id);
         const fetchOptions = { maxRetries: options.maxRetries, signal: options.signal };
 
         // Ensure dates are in full ISO 8601 format for the Time-Off API
@@ -2162,34 +2210,50 @@ export const Api = {
         // Stryker disable next-line StringLiteral: API contract requires exact ISO format with end-of-day time
         const endIso = `${endDate}T23:59:59.999Z`;
 
-        const { data, failed } = await this.fetchTimeOffRequests(
-            workspaceId,
-            userIds,
-            startIso,
-            endIso,
-            fetchOptions
-        );
+        // Batch user IDs to avoid oversized POST bodies (M3)
+        const TIME_OFF_USER_BATCH_SIZE = 500;
+        const userIdBatches = splitIntoBatches(users.map((u) => u.id), TIME_OFF_USER_BATCH_SIZE);
+        let allRequests: TimeOffRequest[] = [];
+        let anyFailed = false;
 
-        if (failed) {
+        for (const userIdBatch of userIdBatches) {
+            const { data, failed } = await this.fetchTimeOffRequests(
+                workspaceId,
+                userIdBatch,
+                startIso,
+                endIso,
+                fetchOptions
+            );
+
+            if (failed) {
+                anyFailed = true;
+                continue;
+            }
+
+            // Extract requests from response
+            if (data && typeof data === 'object') {
+                if ('requests' in data && Array.isArray(data.requests)) {
+                    allRequests = allRequests.concat(data.requests);
+                } else if (Array.isArray(data)) {
+                    allRequests = allRequests.concat(data);
+                } else if ('timeOffRequests' in data && Array.isArray(data.timeOffRequests)) {
+                    allRequests = allRequests.concat(data.timeOffRequests);
+                }
+            }
+
+            if (options.onProgress) {
+                options.onProgress(allRequests.length, 'time-off');
+            }
+        }
+
+        if (anyFailed && allRequests.length === 0) {
             store.apiStatus.timeOffFailed = users.length;
             return new Map();
         }
 
         // Build per-user per-date map
         const results = new Map<string, Map<string, TimeOffInfo>>();
-
-        // Try multiple possible response formats to tolerate backend variations (array vs object wrapper)
-        let requests: TimeOffRequest[] = [];
-        if (data && typeof data === 'object') {
-            if ('requests' in data && Array.isArray(data.requests)) {
-                requests = data.requests;
-            } else if (Array.isArray(data)) {
-                // API might return array directly
-                requests = data;
-            } else if ('timeOffRequests' in data && Array.isArray(data.timeOffRequests)) {
-                requests = data.timeOffRequests;
-            }
-        }
+        const requests = allRequests;
 
         // Process each approved request and expand multi-day periods into per-date records
         // eslint-disable-next-line complexity -- Inherent complexity: date parsing, period expansion, hours calculation

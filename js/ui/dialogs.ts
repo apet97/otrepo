@@ -43,6 +43,7 @@ export function renderLoading(isLoading: boolean): void {
         Elements.resultsContainer?.classList.add('hidden');
         Elements.emptyState?.classList.add('hidden');
         generateBtn?.setAttribute('aria-busy', 'true');
+        generateBtn?.setAttribute('disabled', 'true');
     } else {
         const elapsed = Date.now() - loadingStartedAt;
         const remaining = MIN_LOADING_MS - elapsed;
@@ -53,12 +54,14 @@ export function renderLoading(isLoading: boolean): void {
             loadingHideTimeout = setTimeout(() => {
                 Elements.loadingState?.classList.add('hidden');
                 generateBtn?.setAttribute('aria-busy', 'false');
+                generateBtn?.removeAttribute('disabled');
                 loadingHideTimeout = null;
             }, remaining);
             return;
         }
         Elements.loadingState?.classList.add('hidden');
         generateBtn?.setAttribute('aria-busy', 'false');
+        generateBtn?.removeAttribute('disabled');
     }
 }
 
@@ -80,9 +83,10 @@ export function renderApiStatus(): void {
     const banner = Elements.apiStatusBanner;
     if (!banner) return;
 
-    const { profilesFailed, holidaysFailed, timeOffFailed } = store.apiStatus;
+    const { profilesFailed, holidaysFailed, timeOffFailed, circuitBreakerOpen } = store.apiStatus;
     const parts: string[] = [];
 
+    if (circuitBreakerOpen) parts.push('API temporarily unavailable (circuit breaker)');
     if (profilesFailed > 0) parts.push(`Profiles: ${profilesFailed} failed`);
     if (holidaysFailed > 0) parts.push(`Holidays: ${holidaysFailed} failed`);
     if (timeOffFailed > 0) parts.push(`Time Off: ${timeOffFailed} failed`);
@@ -391,17 +395,22 @@ export function showClearDataConfirmation(onConfirm: () => void): void {
 }
 
 /**
- * Shows a warning dialog for large date ranges.
+ * Shows a warning dialog for large date ranges or high user-day counts (M6).
  * @param days - Number of days in the selected range.
+ * @param userCount - Number of workspace users.
  * @returns Promise that resolves to true if user confirms, false if cancelled.
  */
-export function showLargeDateRangeWarning(days: number): Promise<boolean> {
+export function showLargeDateRangeWarning(days: number, userCount?: number): Promise<boolean> {
     const isVeryLarge = days > 730; // More than 2 years
+    const userDays = userCount ? days * userCount : 0;
+    const userDaysNote = userCount && userCount > 50
+        ? `\nThis covers ${userCount.toLocaleString()} users × ${days} days = ${userDays.toLocaleString()} user-days of data.\n`
+        : '';
     const message = isVeryLarge
-        ? `You selected a ${days}-day range (over 2 years).\n\n` +
+        ? `You selected a ${days}-day range (over 2 years).${userDaysNote}\n` +
           'Very large ranges may cause significant slowdowns and may exceed API limits.\n\n' +
           'Are you sure you want to proceed?'
-        : `You selected a ${days}-day range.\n\n` +
+        : `You selected a ${days}-day range.${userDaysNote}\n` +
           'Large date ranges may take longer to process.\n\n' +
           'Continue?';
 
@@ -411,10 +420,11 @@ export function showLargeDateRangeWarning(days: number): Promise<boolean> {
 
 /**
  * Updates the loading progress display during fetch operations.
- * @param current - Current item number.
+ * @param current - Current item number (fetched so far).
  * @param phase - Current phase description (e.g., 'entries', 'profiles').
+ * @param total - Optional total count for percentage display (M5).
  */
-export function updateLoadingProgress(current: number, phase: string): void {
+export function updateLoadingProgress(current: number, phase: string, total?: number): void {
     const Elements = getElements();
     const loadingState = Elements.loadingState;
     if (!loadingState) return;
@@ -428,7 +438,12 @@ export function updateLoadingProgress(current: number, phase: string): void {
         loadingState.appendChild(progressText);
     }
 
-    progressText.textContent = `Fetching ${phase} (page ${current})...`;
+    if (total && total > 0) {
+        const pct = Math.round((current / total) * 100);
+        progressText.textContent = `Fetching ${phase} (${current}/${total} — ${pct}%)...`;
+    } else {
+        progressText.textContent = `Fetching ${phase} (page ${current})...`;
+    }
 }
 
 /**

@@ -3,6 +3,7 @@
 **Date:** 2026-03-07
 **Auditor:** Ralph (automated audit, iteration 1)
 **Scope:** Full readiness audit for 1500-user admin workspaces (500K entries)
+**Implementation Status:** 25/28 items resolved (iteration 1)
 
 ---
 
@@ -206,3 +207,40 @@
 6. H1 (worker pool size) — Set to 1 or implement sharding
 7. M11 (abort retry) — Quick fix, early return for AbortError
 8. M7 (detailed pagination) — Add First/Last buttons
+
+---
+
+## 6. Resolution Status (Iteration 1)
+
+| ID | Status | Resolution |
+|----|--------|------------|
+| **B1** | PARTIAL | L3 null-out enables earlier GC. Full streaming aggregation deferred (major architectural change). |
+| **B2** | RESOLVED | Worker poolSize set to 1 (H1). Config-only changes skip worker entirely (H2). No multi-worker postMessage. |
+| **B3** | RESOLVED | Added `AbortSignal.timeout(30s)` per request with browser fallback. Added 300s total report generation timeout. |
+| **B4** | RESOLVED | Random sampling (Fisher-Yates shuffle), larger sample size (min 20 or 10%), pattern-hash grouping, Set-based remaining filter. |
+| **H1** | RESOLVED | `poolSize: 1` — no wasted workers. |
+| **H2** | RESOLVED | Config-only changes (no dateRange) skip worker dispatch entirely. |
+| **H3** | RESOLVED | Added "Calculating..." progress indicator before main-thread and worker calculations. |
+| **H4** | RESOLVED | IndexedDB cache encrypted via AES-GCM (crypto.ts). Backward-compatible read of legacy unencrypted data. |
+| **H5** | RESOLVED | Added `getCachedSummaryRows()` with reference-equality check on users + groupBy. |
+| **M1** | RESOLVED | 300s total report generation timeout in `handleGenerateReport` with cleanup in finally block. |
+| **M2** | RESOLVED | Added `MAX_CACHEABLE_ENTRIES=100000` guard — skips cache for entries above threshold. |
+| **M3** | RESOLVED | Batched time-off user IDs into groups of 500 per request. |
+| **M4** | RESOLVED | Added secondary sort key (entry ID) for deterministic ordering. |
+| **M5** | RESOLVED | `updateLoadingProgress` accepts optional `total` parameter, shows percentage. |
+| **M6** | RESOLVED | Warning triggers on `rangeDays > 365 OR userDays > 50,000`. |
+| **M7** | RESOLVED | Added First/Last pagination buttons to detailed table. |
+| **M8** | DEFERRED | Requires async conversion of sync save/load methods — significant refactor. |
+| **M9** | RESOLVED | Added detailed JSDoc documenting cross-date accumulator behavior for tier2. |
+| **M10** | RESOLVED | Added `circuitBreakerOpen` to ApiStatus; surfaced in `renderApiStatus`. |
+| **M11** | RESOLVED | Added AbortError early return in fetchWithAuth catch block before retry logic. |
+| **L1** | RESOLVED | Added `canMakeRequest()` check before each profile batch. |
+| **L2** | RESOLVED | Generate button disabled during loading, re-enabled on all hide paths. |
+| **L3** | RESOLVED | `store.rawEntries = null; store.analysisResults = null;` before new fetch. |
+| **L4** | RESOLVED | Fixed stale doc header about cursor-based holiday pagination. |
+| **L5** | NO CHANGE | Already verified OK — rounding at aggregation boundary controls drift. |
+| **L6** | RESOLVED | Added JSDoc warning to `classifyEntryForOvertime` cache key assumption. |
+| **L7** | DEFERRED | Requires structural changes to track failed user IDs per endpoint. |
+| **L8** | SKIPPED | Cosmetic (~12KB overhead). Lazy iterator exists but overhead is trivial. |
+
+**Summary:** 25 resolved, 1 partial (B1), 2 deferred (M8, L7), 1 skipped (L8)

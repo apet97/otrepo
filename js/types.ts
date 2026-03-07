@@ -501,6 +501,8 @@ export interface ApiStatus {
     holidaysFailed: number;
     /** Count of failed time off fetches */
     timeOffFailed: number;
+    /** Whether the circuit breaker is currently open (M10) */
+    circuitBreakerOpen?: boolean;
 }
 
 /**

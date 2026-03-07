@@ -1733,7 +1733,8 @@ export function calculateAnalysis(
                 const aStart = a.timeInterval?.start;
                 const bStart = b.timeInterval?.start;
                 if (!aStart || !bStart) return 0;
-                return aStart.localeCompare(bStart);
+                // Secondary sort by entry ID for deterministic overtime attribution (M4)
+                return aStart.localeCompare(bStart) || (a.id || '').localeCompare(b.id || '');
             });
             /* Stryker restore all */
 
@@ -1868,8 +1869,15 @@ export function calculateAnalysis(
             }
         }
 
-        // === INITIALIZE TIER2 OVERTIME ACCUMULATOR ===
+        // === INITIALIZE TIER2 OVERTIME ACCUMULATOR (M9: documented behavior) ===
         // Track cumulative OT hours for this user across the entire date range.
+        // DESIGN: The accumulator is cross-date — it sums all OT hours from the first date
+        // through the current date. The tier2 threshold is looked up per-day via
+        // getEffectiveTier2Threshold(), but is checked against this cumulative counter.
+        // This means tier2 activates when total OT across the range exceeds the threshold,
+        // not when a single day's OT exceeds it. If per-day tier2 overrides exist with
+        // different thresholds, the threshold checked changes day-to-day but the accumulator
+        // does not reset — this is intentional for "total OT in period" semantics.
         let userOTAccumulator = 0;
 
         // === PROCESS EACH DATE IN RANGE ===
