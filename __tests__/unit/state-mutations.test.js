@@ -46,7 +46,6 @@ describe('State Mutation Tests', () => {
     store.overrides = {};
     store.apiStatus = { profilesFailed: 0, holidaysFailed: 0, timeOffFailed: 0 };
     store.throttleStatus = { retryCount: 0, lastRetryTime: null };
-    store.listeners.clear();
     store.ui = {
       isLoading: false,
       summaryExpanded: false,
@@ -745,49 +744,7 @@ describe('State Mutation Tests', () => {
   });
 
   // ========================================================================
-  // 13. Subscribe/Notify
-  // ========================================================================
-
-  describe('Subscribe/Notify pattern', () => {
-    it('should call subscriber on notify', () => {
-      const listener = jest.fn();
-      store.subscribe(listener);
-
-      store.notify({ action: 'test' });
-
-      expect(listener).toHaveBeenCalledTimes(1);
-      expect(listener).toHaveBeenCalledWith(store, { action: 'test' });
-    });
-
-    it('should support multiple subscribers', () => {
-      const listener1 = jest.fn();
-      const listener2 = jest.fn();
-
-      store.subscribe(listener1);
-      store.subscribe(listener2);
-
-      store.notify({ action: 'test' });
-
-      expect(listener1).toHaveBeenCalledTimes(1);
-      expect(listener2).toHaveBeenCalledTimes(1);
-    });
-
-    it('should unsubscribe correctly', () => {
-      const listener = jest.fn();
-      const unsubscribe = store.subscribe(listener);
-
-      store.notify({ action: 'test1' });
-      expect(listener).toHaveBeenCalledTimes(1);
-
-      unsubscribe();
-
-      store.notify({ action: 'test2' });
-      expect(listener).toHaveBeenCalledTimes(1); // Still 1, not called again
-    });
-  });
-
-  // ========================================================================
-  // 14. Throttle Status
+  // 13. Throttle Status
   // ========================================================================
 
   describe('Throttle status tracking', () => {

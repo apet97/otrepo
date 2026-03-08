@@ -38,7 +38,6 @@ describe('State Module - Store Class', () => {
     // Additional store cleanup
     store.token = null;
     store.claims = null;
-    store.listeners.clear();
   });
 
   describe('Store Initialization', () => {
@@ -873,53 +872,6 @@ describe('State Module - Store Class', () => {
         expect(Object.keys(store.overrides.user1.weeklyOverrides).length).toBeGreaterThan(0);
         expect(store.overrides.user1.weeklyOverrides.MONDAY.capacity).toBe(8);
       });
-    });
-  });
-
-  describe('Pub/Sub Pattern', () => {
-    beforeEach(() => {
-      store.setToken('mock_token', { workspaceId: 'workspace_123' });
-      store.listeners.clear();
-    });
-
-    it('should subscribe a listener', () => {
-      const listener = jest.fn();
-
-      store.subscribe(listener);
-
-      expect(store.listeners.size).toBe(1);
-    });
-
-    it('should return unsubscribe function', () => {
-      const listener = jest.fn();
-
-      const unsubscribe = store.subscribe(listener);
-      expect(store.listeners.size).toBe(1);
-
-      unsubscribe();
-      expect(store.listeners.size).toBe(0);
-    });
-
-    it('should notify all listeners', () => {
-      const listener1 = jest.fn();
-      const listener2 = jest.fn();
-
-      store.subscribe(listener1);
-      store.subscribe(listener2);
-
-      store.notify({ type: 'update' });
-
-      expect(listener1).toHaveBeenCalledWith(store, { type: 'update' });
-      expect(listener2).toHaveBeenCalledWith(store, { type: 'update' });
-    });
-
-    it('should notify with empty event by default', () => {
-      const listener = jest.fn();
-
-      store.subscribe(listener);
-      store.notify();
-
-      expect(listener).toHaveBeenCalledWith(store, {});
     });
   });
 
@@ -3480,6 +3432,63 @@ describe('LocalStorage Quota Handling', () => {
         expect(firstArg).toContain('[State]');
       }
       warnSpy.mockRestore();
+    });
+  });
+
+  // ==========================================================================
+  // COR-5: clearReportCache() clears IndexedDB
+  // ==========================================================================
+  describe('clearReportCache IndexedDB cleanup (COR-5)', () => {
+    it('should call indexedDB.deleteDatabase when clearing report cache', () => {
+      const deleteDbSpy = jest.fn();
+      const originalIDB = globalThis.indexedDB;
+      globalThis.indexedDB = { ...originalIDB, deleteDatabase: deleteDbSpy };
+
+      store.clearReportCache();
+
+      expect(deleteDbSpy).toHaveBeenCalledWith('otplus_cache');
+
+      globalThis.indexedDB = originalIDB;
+    });
+
+    it('should not throw when indexedDB is unavailable', () => {
+      const originalIDB = globalThis.indexedDB;
+      delete globalThis.indexedDB;
+
+      expect(() => store.clearReportCache()).not.toThrow();
+
+      globalThis.indexedDB = originalIDB;
+    });
+  });
+
+  // ==========================================================================
+  // COR-6: clearAllData() clears IndexedDB via clearReportCache
+  // ==========================================================================
+  describe('clearAllData IndexedDB cleanup (COR-6)', () => {
+    it('should call clearReportCache when clearing all data', () => {
+      const clearCacheSpy = jest.spyOn(store, 'clearReportCache');
+
+      store.clearAllData();
+
+      expect(clearCacheSpy).toHaveBeenCalled();
+      clearCacheSpy.mockRestore();
+    });
+  });
+
+  // ==========================================================================
+  // CQ-7: Pub/sub removed
+  // ==========================================================================
+  describe('Pub/sub removal (CQ-7)', () => {
+    it('should not have subscribe method', () => {
+      expect(store.subscribe).toBeUndefined();
+    });
+
+    it('should not have notify method', () => {
+      expect(store.notify).toBeUndefined();
+    });
+
+    it('should not have listeners property', () => {
+      expect(store.listeners).toBeUndefined();
     });
   });
 });

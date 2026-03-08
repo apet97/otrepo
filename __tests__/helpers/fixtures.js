@@ -295,7 +295,6 @@ export function captureStateSnapshot(store) {
     profilesSize: store?.profiles?.size || 0,
     holidaysSize: store?.holidays?.size || 0,
     timeOffSize: store?.timeOff?.size || 0,
-    listenersSize: store?.listeners?.size || 0,
     localStorageLength: typeof localStorage !== 'undefined' ? localStorage.length : 0
   };
 }
@@ -311,18 +310,6 @@ export function validateStateIsolation(store) {
   }
 
   const mutations = [];
-  const current = {
-    overridesKeys: Object.keys(store?.overrides || {}),
-    profilesSize: store?.profiles?.size || 0,
-    holidaysSize: store?.holidays?.size || 0,
-    timeOffSize: store?.timeOff?.size || 0,
-    listenersSize: store?.listeners?.size || 0,
-    localStorageLength: typeof localStorage !== 'undefined' ? localStorage.length : 0
-  };
-
-  if (current.listenersSize !== sharedStateSnapshot.listenersSize) {
-    mutations.push(`listeners: ${sharedStateSnapshot.listenersSize} -> ${current.listenersSize}`);
-  }
 
   return {
     valid: mutations.length === 0,
@@ -385,10 +372,6 @@ export function resetStore(store) {
     holidaysFailed: 0,
     timeOffFailed: 0
   };
-
-  if (store.listeners) {
-    store.listeners.clear();
-  }
 
   if (store.throttleStatus) {
     store.throttleStatus.retryCount = 0;

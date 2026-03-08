@@ -136,10 +136,6 @@ export function resetStore(store) {
     };
   }
 
-  // Clear listeners
-  if (store.listeners) {
-    store.listeners.clear();
-  }
 }
 
 /**

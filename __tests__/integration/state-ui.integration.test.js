@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  *
  * Integration test: state ↔ UI state synchronization.
- * Verifies config changes persist, UI state roundtrips, and listeners fire correctly.
+ * Verifies config changes persist and UI state roundtrips.
  * Addresses: C11
  */
 
@@ -16,7 +16,6 @@ describe('integration: state ↔ UI synchronization', () => {
     sessionStorage.clear();
     store.token = null;
     store.claims = null;
-    store.listeners.clear();
     store.overrides = {};
     store.config = {
       useProfileCapacity: true,
@@ -148,62 +147,6 @@ describe('integration: state ↔ UI synchronization', () => {
       const parsed = JSON.parse(localStorage.getItem('otplus_ui_state'));
       expect(parsed.summaryGroupBy).toBe('project');
       expect(parsed.summaryExpanded).toBe(true);
-    });
-  });
-
-  describe('listener subscribe/notify system', () => {
-    it('should notify all subscribers on config change + notify()', () => {
-      const listener1 = jest.fn();
-      const listener2 = jest.fn();
-
-      store.subscribe(listener1);
-      store.subscribe(listener2);
-
-      store.config.showDecimalTime = true;
-      store.notify({ action: 'config_change', key: 'showDecimalTime' });
-
-      expect(listener1).toHaveBeenCalledTimes(1);
-      expect(listener2).toHaveBeenCalledTimes(1);
-      expect(listener1).toHaveBeenCalledWith(store, {
-        action: 'config_change',
-        key: 'showDecimalTime',
-      });
-    });
-
-    it('should not call unsubscribed listeners', () => {
-      const listener = jest.fn();
-      const unsub = store.subscribe(listener);
-
-      store.notify({ action: 'test1' });
-      expect(listener).toHaveBeenCalledTimes(1);
-
-      unsub();
-      store.notify({ action: 'test2' });
-      expect(listener).toHaveBeenCalledTimes(1); // Still 1
-    });
-
-    it('should handle multiple subscribe/unsubscribe cycles', () => {
-      const listener = jest.fn();
-      const unsub1 = store.subscribe(listener);
-      unsub1();
-
-      const unsub2 = store.subscribe(listener);
-      store.notify();
-      expect(listener).toHaveBeenCalledTimes(1);
-      unsub2();
-
-      store.notify();
-      expect(listener).toHaveBeenCalledTimes(1);
-    });
-
-    it('should pass store reference and event to listener', () => {
-      const listener = jest.fn();
-      store.subscribe(listener);
-      store.notify({ action: 'recalculate' });
-
-      const [receivedStore, receivedEvent] = listener.mock.calls[0];
-      expect(receivedStore).toBe(store);
-      expect(receivedEvent.action).toBe('recalculate');
     });
   });
 
