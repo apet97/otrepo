@@ -194,8 +194,9 @@ export async function downloadCsv(
         const userChunk = analysis.slice(i, i + CSV_CHUNK_SIZE);
         const rows = buildRowsForUsers(userChunk);
         if (rows.length > 0) {
-            // Add newline prefix for chunks after the header
-            chunks.push(rows.join('\n'));
+            // Each chunk needs a leading newline so it doesn't merge
+            // with the last row of the previous chunk when Blob concatenates
+            chunks.push('\n' + rows.join('\n'));
         }
         // Yield to event loop between chunks (but not after the last one)
         if (i + CSV_CHUNK_SIZE < analysis.length) {

@@ -1524,6 +1524,156 @@ describe('Large Date Range Calculations', () => {
 });
 
 // ============================================================================
+// COR-2: Weekly sort determinism — entries with identical start times
+// ============================================================================
+describe('Weekly sort determinism (COR-2)', () => {
+  let mockStore;
+
+  afterEach(() => {
+    standardAfterEach();
+    mockStore = null;
+  });
+
+  it('produces deterministic weekly OT attribution for entries with identical start times', () => {
+    const users = generateMockUsers(1);
+    mockStore = createMockStore({
+      users,
+      config: { overtimeBasis: 'weekly' },
+      calcParams: {
+        dailyThreshold: 8,
+        weeklyThreshold: 8, // Low threshold so OT triggers
+        overtimeMultiplier: 1.5
+      }
+    });
+
+    // Two entries with identical start times but different IDs
+    const entries = [
+      {
+        id: 'entry_B', // Alphabetically second
+        userId: 'user0',
+        userName: 'Alice Johnson',
+        timeInterval: {
+          start: '2025-01-06T09:00:00Z',
+          end: '2025-01-06T14:00:00Z',
+          duration: 'PT5H'
+        },
+        hourlyRate: { amount: 5000 },
+        billable: true
+      },
+      {
+        id: 'entry_A', // Alphabetically first
+        userId: 'user0',
+        userName: 'Alice Johnson',
+        timeInterval: {
+          start: '2025-01-06T09:00:00Z', // Same start time as entry_B
+          end: '2025-01-06T14:00:00Z',
+          duration: 'PT5H'
+        },
+        hourlyRate: { amount: 5000 },
+        billable: true
+      }
+    ];
+
+    const dateRange = { start: '2025-01-06', end: '2025-01-06' };
+
+    // Run calculation multiple times — results must be identical
+    const results1 = calculateAnalysis(entries, mockStore, dateRange);
+    const results2 = calculateAnalysis(entries, mockStore, dateRange);
+    const results3 = calculateAnalysis([...entries].reverse(), mockStore, dateRange);
+
+    // All runs should produce the same OT attribution
+    const days1 = Array.from(results1[0].days.values());
+    const days2 = Array.from(results2[0].days.values());
+    const days3 = Array.from(results3[0].days.values());
+
+    // entry_A (alphabetically first) should always be processed first
+    const entriesRun1 = days1[0].entries;
+    const entriesRun2 = days2[0].entries;
+    const entriesRun3 = days3[0].entries;
+
+    expect(entriesRun1[0].id).toBe(entriesRun2[0].id);
+    expect(entriesRun1[1].id).toBe(entriesRun2[1].id);
+    expect(entriesRun1[0].id).toBe(entriesRun3[0].id);
+    expect(entriesRun1[1].id).toBe(entriesRun3[1].id);
+
+    // OT values must match across runs
+    expect(entriesRun1[0].analysis.overtime).toBe(entriesRun2[0].analysis.overtime);
+    expect(entriesRun1[1].analysis.overtime).toBe(entriesRun2[1].analysis.overtime);
+    expect(entriesRun1[0].analysis.overtime).toBe(entriesRun3[0].analysis.overtime);
+    expect(entriesRun1[1].analysis.overtime).toBe(entriesRun3[1].analysis.overtime);
+  });
+});
+
+// ============================================================================
+// COR-3: Entry mutation — calculateAnalysis must not mutate input entries
+// ============================================================================
+describe('Entry immutability (COR-3)', () => {
+  let mockStore;
+
+  afterEach(() => {
+    standardAfterEach();
+    mockStore = null;
+  });
+
+  it('does not mutate input entry objects with analysis property', () => {
+    const users = generateMockUsers(1);
+    mockStore = createMockStore({
+      users,
+      config: { overtimeBasis: 'daily' },
+      calcParams: {
+        dailyThreshold: 8,
+        weeklyThreshold: 40,
+        overtimeMultiplier: 1.5
+      }
+    });
+
+    const entries = [
+      {
+        id: 'entry_1',
+        userId: 'user0',
+        userName: 'Alice Johnson',
+        timeInterval: {
+          start: '2025-01-06T09:00:00Z',
+          end: '2025-01-06T18:00:00Z',
+          duration: 'PT9H'
+        },
+        hourlyRate: { amount: 5000 },
+        billable: true
+      },
+      {
+        id: 'entry_2',
+        userId: 'user0',
+        userName: 'Alice Johnson',
+        timeInterval: {
+          start: '2025-01-07T09:00:00Z',
+          end: '2025-01-07T17:00:00Z',
+          duration: 'PT8H'
+        },
+        hourlyRate: { amount: 5000 },
+        billable: false
+      }
+    ];
+
+    const dateRange = { start: '2025-01-06', end: '2025-01-07' };
+
+    // Snapshot: input entries should NOT have analysis before call
+    expect(entries[0]).not.toHaveProperty('analysis');
+    expect(entries[1]).not.toHaveProperty('analysis');
+
+    const results = calculateAnalysis(entries, mockStore, dateRange);
+
+    // After calculation: input entries still must NOT have analysis
+    expect(entries[0]).not.toHaveProperty('analysis');
+    expect(entries[1]).not.toHaveProperty('analysis');
+
+    // But the returned results' entries SHOULD have analysis
+    const day1Entries = Array.from(results[0].days.values())[0].entries;
+    expect(day1Entries[0]).toHaveProperty('analysis');
+    expect(day1Entries[0].analysis.overtime).toBeGreaterThan(0); // 9h - 8h = 1h OT
+  });
+});
+
+// ============================================================================
 // MUTATION TESTING - NaN Checks and Edge Cases (B2, B3, B4, B5, B6, B7)
 // ============================================================================
 // These tests are specifically designed to kill surviving mutants in calc.ts

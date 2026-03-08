@@ -1831,7 +1831,7 @@ export function calculateAnalysis(
                             return 0;
                         }
 
-                        return aStart.localeCompare(bStart);
+                        return aStart.localeCompare(bStart) || (a.id || '').localeCompare(b.id || '');
                     });
                     /* Stryker restore all */
 
@@ -2021,8 +2021,8 @@ export function calculateAnalysis(
                 if (isTimeOffDay) analysis.tags.push('TIME-OFF');
                 if (entryClass === 'break') analysis.tags.push('BREAK');
 
-                (entry as TimeEntry & { analysis: EntryAnalysis }).analysis = analysis;
-                processedEntries.push(entry);
+                const enrichedEntry = { ...entry, analysis };
+                processedEntries.push(enrichedEntry);
 
                 const totals = userAnalysis.totals;
                 totals.total += duration;
