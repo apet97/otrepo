@@ -671,8 +671,6 @@ export interface StoreInterface {
     apiStatus: ApiStatus;
     /** UI state */
     ui: UIState;
-    /** Subscriber functions */
-    listeners: Set<(store: StoreInterface, event?: unknown) => void>;
 }
 
 // ==================== SUMMARY ROW TYPE ====================

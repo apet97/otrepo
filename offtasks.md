@@ -111,7 +111,7 @@ ctx.onmessage = (event: MessageEvent<WorkerInput>) => {
 
 ---
 
-### COR-5: clearReportCache() only clears sessionStorage, not IndexedDB
+### [RESOLVED] COR-5: clearReportCache() only clears sessionStorage, not IndexedDB
 
 - **Severity:** Medium
 - **File:** `js/state.ts`
@@ -128,7 +128,7 @@ clearReportCache(): void {
 
 ---
 
-### COR-6: clearAllData() does not clear IndexedDB report cache
+### [RESOLVED] COR-6: clearAllData() does not clear IndexedDB report cache
 
 - **Severity:** Medium
 - **File:** `js/state.ts`
@@ -624,7 +624,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### CQ-6: sessionStorageFallback Map grows without bounds
+### [RESOLVED] CQ-6: sessionStorageFallback Map grows without bounds
 
 - **Severity:** Low
 - **File:** `js/state.ts`
@@ -634,7 +634,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### CQ-7: Pub/sub system implemented but documented as unused
+### [RESOLVED] CQ-7: Pub/sub system implemented but documented as unused
 
 - **Severity:** Low
 - **File:** `js/state.ts`

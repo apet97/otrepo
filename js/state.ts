@@ -64,11 +64,6 @@
  *
  * All persisted data is parsed with `safeJSONParse()` to prevent crashes from corrupted storage.
  *
- * ## Reactivity (Optional Publisher/Subscriber)
- *
- * The Store provides a `subscribe()/notify()` pattern for components that need to react
- * to state changes. However, current implementation uses direct property access and manual
- * render triggers. The subscriber system is available but not actively used.
  *
  * ## Related Files
  *
@@ -134,6 +129,8 @@ const stateLogger = createLogger('State');
 // ========================================================================
 
 const sessionStorageFallback = new Map<string, string>();
+/** Maximum number of entries in the sessionStorage fallback Map (CQ-6) */
+const SESSION_FALLBACK_MAX_SIZE = 50;
 let usingSessionFallback = false;
 
 function tryRecoverSessionFallback(): boolean {
@@ -177,6 +174,13 @@ function safeSessionGetItem(key: string): string | null {
 
 function safeSessionSetItem(key: string, value: string): boolean {
     if (usingSessionFallback && !tryRecoverSessionFallback()) {
+        // Evict oldest entries if at capacity (CQ-6)
+        if (sessionStorageFallback.size >= SESSION_FALLBACK_MAX_SIZE && !sessionStorageFallback.has(key)) {
+            const oldestKey = sessionStorageFallback.keys().next().value;
+            if (oldestKey !== undefined) {
+                sessionStorageFallback.delete(oldestKey);
+            }
+        }
         sessionStorageFallback.set(key, value);
         return false;
     }
@@ -186,6 +190,13 @@ function safeSessionSetItem(key: string, value: string): boolean {
         return true;
     } catch {
         usingSessionFallback = true;
+        // Evict oldest entries if at capacity (CQ-6)
+        if (sessionStorageFallback.size >= SESSION_FALLBACK_MAX_SIZE && !sessionStorageFallback.has(key)) {
+            const oldestKey = sessionStorageFallback.keys().next().value;
+            if (oldestKey !== undefined) {
+                sessionStorageFallback.delete(oldestKey);
+            }
+        }
         sessionStorageFallback.set(key, value);
         return false;
     }
@@ -272,16 +283,6 @@ interface RangeMapCache<T> {
     entries: [string, [string, T][]][];
 }
 
-/**
- * Listener function type for Publisher/Subscriber pattern.
- *
- * Called whenever `store.notify()` is invoked. Receives the store instance and
- * optional event metadata describing what changed.
- *
- * @param store - The Store instance
- * @param event - Optional metadata about the change (not actively used, available for future use)
- */
-type StoreListener = (store: Store, event?: Record<string, unknown>) => void;
 
 /**
  * Central state store for the entire OTPLUS application.
@@ -306,7 +307,7 @@ type StoreListener = (store: Store, event?: Record<string, unknown>) => void;
  * **Overrides**: overrides (per-user adjustments)
  * **Status**: apiStatus (error tracking), throttleStatus (rate limiting)
  * **UI**: ui (tab selection, grouping, pagination states)
- * **Reactivity**: listeners (subscriber pattern, optional)
+ * **Diagnostics**: API failure tracking, rate limit tracking
  *
  * ## Synchronous Operations
  *
@@ -436,8 +437,6 @@ class Store {
         paginationAbortedDueToTokenExpiration: false,
     };
 
-    /** Set of subscriber functions. */
-    listeners: Set<StoreListener> = new Set();
 
     /** Encryption key for localStorage encryption (derived from workspace ID). */
     private encryptionKey: CryptoKey | null = null;
@@ -483,46 +482,6 @@ class Store {
         this._loadUIState();
     }
 
-    /**
-     * Subscribes a listener function to state changes.
-     *
-     * The listener will be called with `notify()` whenever any state change occurs.
-     * This implements a simple Publisher/Subscriber pattern for reactive updates.
-     *
-     * Note: This is available but not currently actively used in the application.
-     * UI updates are triggered directly by event handlers (see main.ts).
-     *
-     * ## Example
-     *
-     * ```typescript
-     * const unsubscribe = store.subscribe((store, event) => {
-     *   console.log('State changed:', event);
-     *   ui.render();
-     * });
-     * // Later:
-     * unsubscribe();
-     * ```
-     *
-     * @param listener - Function to call when notify() is triggered
-     * @returns Unsubscribe function to remove the listener
-     */
-    subscribe(listener: StoreListener): () => void {
-        this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
-    }
-
-    /**
-     * Notifies all subscribers of a state change.
-     *
-     * Calls all registered listener functions with this store instance and optional
-     * event metadata. This is available for components that want reactive updates,
-     * but the current implementation uses direct event handlers instead.
-     *
-     * @param event - Optional event metadata describing the change
-     */
-    notify(event: Record<string, unknown> = {}): void {
-        this.listeners.forEach((listener) => listener(this, event));
-    }
 
     /**
      * Loads persisted configuration from localStorage.
@@ -1795,6 +1754,14 @@ class Store {
      */
     clearReportCache(): void {
         safeSessionRemoveItem(STORAGE_KEYS.REPORT_CACHE);
+        // Also clear IndexedDB report cache (COR-5)
+        try {
+            if (typeof indexedDB !== 'undefined') {
+                indexedDB.deleteDatabase(IDB_NAME);
+            }
+        } catch {
+            // IndexedDB may be unavailable
+        }
     }
 
     /**
@@ -1940,6 +1907,9 @@ class Store {
             paginationTruncated: false,
             paginationAbortedDueToTokenExpiration: false,
         };
+
+        // Clear report cache (sessionStorage + IndexedDB) (COR-6)
+        this.clearReportCache();
 
         // Note: token and claims are NOT cleared, so user remains authenticated
     }
