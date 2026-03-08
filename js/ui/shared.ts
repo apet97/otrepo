@@ -161,6 +161,13 @@ export function buildProfitStacks(
 }
 
 /**
+ * UX-8: Currency symbol constant — extracted from hardcoded '$/h' for configurability.
+ * To support multi-currency, replace this with a value from workspace settings or Intl.NumberFormat.
+ */
+const CURRENCY_SYMBOL = '$';
+const RATE_SUFFIX = `${CURRENCY_SYMBOL}/h`;
+
+/**
  * Amount label configuration
  */
 export interface AmountLabels {
@@ -181,7 +188,7 @@ export function getAmountLabels(): AmountLabels {
             column: 'Cost',
             total: 'Total Cost (with OT)',
             base: 'Cost (no OT)',
-            rate: 'Cost rate $/h',
+            rate: `Cost rate ${RATE_SUFFIX}`,
         };
     }
     if (amountDisplay === 'profit') {
@@ -189,11 +196,11 @@ export function getAmountLabels(): AmountLabels {
             column: 'Profit',
             total: 'Totals (with OT)',
             base: 'Base (no OT)',
-            rate: 'Rate $/h',
+            rate: `Rate ${RATE_SUFFIX}`,
             isProfit: true,
         };
     }
-    return { column: 'Amount', total: 'Total (with OT)', base: 'Amount (no OT)', rate: 'Rate $/h' };
+    return { column: 'Amount', total: 'Total (with OT)', base: 'Amount (no OT)', rate: `Rate ${RATE_SUFFIX}` };
 }
 
 /**

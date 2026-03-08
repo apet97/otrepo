@@ -181,7 +181,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### BL-1: Override precedence is mode-gated but not documented
+### [RESOLVED] BL-1: Override precedence is mode-gated but not documented
 
 - **Severity:** Medium
 - **File:** `js/calc.ts`
@@ -192,7 +192,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### BL-2: Tier2 threshold per-day with cumulative accumulator produces unintuitive results
+### [RESOLVED] BL-2: Tier2 threshold per-day with cumulative accumulator produces unintuitive results
 
 - **Severity:** Medium
 - **File:** `js/calc.ts`
@@ -203,7 +203,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### BL-3: Weekly threshold=0 disables OT entirely (different from daily threshold=0)
+### [RESOLVED] BL-3: Weekly threshold=0 disables OT entirely (different from daily threshold=0)
 
 - **Severity:** Low
 - **File:** `js/calc.ts`
@@ -213,7 +213,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### BL-4: Non-billable entries force profit to zero
+### [RESOLVED] BL-4: Non-billable entries force profit to zero
 
 - **Severity:** Info
 - **File:** `js/calc.ts`
@@ -297,7 +297,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### SEC-8: Response size checked after full buffering in memory
+### [RESOLVED] SEC-8: Response size checked after full buffering in memory
 
 - **Severity:** Low
 - **File:** `js/api.ts`
@@ -317,7 +317,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### PERF-2: Full store serialization for worker on every calculation
+### [RESOLVED] PERF-2: Full store serialization for worker on every calculation
 
 - **Severity:** Medium
 - **File:** `js/main.ts`
@@ -339,7 +339,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### PERF-4: bindConfigEvents() attaches 26+ listeners with no cleanup
+### [RESOLVED] PERF-4: bindConfigEvents() attaches 26+ listeners with no cleanup
 
 - **Severity:** Low
 - **File:** `js/main.ts`
@@ -498,7 +498,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### UX-8: Currency formatting hardcodes USD ($/h)
+### [RESOLVED] UX-8: Currency formatting hardcodes USD ($/h)
 
 - **Severity:** Low
 - **File:** `js/ui/shared.ts`

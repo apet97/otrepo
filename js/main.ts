@@ -167,7 +167,7 @@ import { initCSPReporter } from './csp-reporter.js';
 import { startTimer, incrementCounter, MetricNames } from './metrics.js';
 import { createWorkerPool, WorkerPool } from './worker-pool.js';
 import { createLogger } from './logger.js';
-import type { DateRange, TimeEntry, TokenClaims, UserAnalysis } from './types.js';
+import type { CalculationParams, DateRange, OvertimeConfig, TimeEntry, TokenClaims, User, UserAnalysis, UserOverride } from './types.js';
 
 const mainLogger = createLogger('Main');
 
@@ -1326,7 +1326,30 @@ function syncAmountDisplayAvailability(entries: TimeEntry[] | null): void {
  * @see docs/spec.md for configuration details
  */
 /* eslint-disable complexity, max-lines-per-function -- Config event binding requires handling many form fields */
+// PERF-4: Guard against duplicate listener attachment and store references for cleanup.
+// Listeners are tracked so they can be removed if needed (e.g., tests, teardown, HMR).
+let _configEventsBound = false;
+const _configListeners: Array<{ el: EventTarget; type: string; fn: EventListener }> = [];
+
+/** Track a listener for potential cleanup */
+function trackListener(el: EventTarget, type: string, fn: EventListener): void {
+    el.addEventListener(type, fn);
+    _configListeners.push({ el, type, fn });
+}
+
+/** Remove all config listeners (for testing or teardown) */
+export function cleanupConfigEvents(): void {
+    for (const { el, type, fn } of _configListeners) {
+        el.removeEventListener(type, fn);
+    }
+    _configListeners.length = 0;
+    _configEventsBound = false;
+}
+
 export function bindConfigEvents(): void {
+    if (_configEventsBound) return;
+    _configEventsBound = true;
+
     // ========== Boolean Configuration Toggles ==========
     // Map of checkbox IDs to config keys for easy wiring of boolean toggles
     const configToggles = [
@@ -1345,8 +1368,8 @@ export function bindConfigEvents(): void {
             // Initialize checkbox with current config value
             el.checked = store.config[key];
 
-            // Add change listener
-            el.addEventListener('change', (e) => {
+            // Add change listener (tracked for cleanup via PERF-4)
+            trackListener(el, 'change', ((e: Event) => {
                 // Update config in memory
                 store.config[key] = (e.target as HTMLInputElement).checked;
                 // Persist to localStorage
@@ -1381,7 +1404,7 @@ export function bindConfigEvents(): void {
                         runCalculation();
                     }
                 }
-            });
+            }) as EventListener);
         }
     });
 
@@ -1393,7 +1416,7 @@ export function bindConfigEvents(): void {
         const validDisplays = new Set(['earned', 'cost', 'profit']);
         const currentDisplay = String(store.config.amountDisplay || '').toLowerCase();
         amountDisplayEl.value = validDisplays.has(currentDisplay) ? currentDisplay : 'earned';
-        amountDisplayEl.addEventListener('change', (e) => {
+        trackListener(amountDisplayEl, 'change', ((e: Event) => {
             const nextValue = String((e.target as HTMLSelectElement).value || '').toLowerCase();
             const allowCost = store.ui.hasCostRates !== false && store.ui.hasAmountRates !== false;
             // Normalize to valid display mode
@@ -1409,7 +1432,7 @@ export function bindConfigEvents(): void {
             amountDisplayEl.value = store.config.amountDisplay;
             // Re-render tables with new amount display mode
             if (store.rawEntries) runCalculation();
-        });
+        }) as EventListener);
     }
 
     // ========== Overtime Basis Selector ==========
@@ -1418,7 +1441,7 @@ export function bindConfigEvents(): void {
         const validBases = new Set(['daily', 'weekly', 'both']);
         const currentBasis = String(store.config.overtimeBasis || '').toLowerCase();
         overtimeBasisEl.value = validBases.has(currentBasis) ? currentBasis : 'daily';
-        overtimeBasisEl.addEventListener('change', (e) => {
+        trackListener(overtimeBasisEl, 'change', ((e: Event) => {
             const nextValue = String((e.target as HTMLSelectElement).value || '').toLowerCase();
             store.config.overtimeBasis = (validBases.has(nextValue) ? nextValue : 'daily') as
                 | 'daily'
@@ -1427,7 +1450,7 @@ export function bindConfigEvents(): void {
             store.saveConfig();
             updateWeeklyThresholdState();
             if (store.rawEntries) runCalculation();
-        });
+        }) as EventListener);
         updateWeeklyThresholdState();
     }
 
@@ -1438,8 +1461,7 @@ export function bindConfigEvents(): void {
     const dailyEl = document.getElementById('configDaily') as HTMLInputElement | null;
     if (dailyEl) {
         dailyEl.value = String(store.calcParams.dailyThreshold);
-        dailyEl.addEventListener(
-            'input',
+        trackListener(dailyEl, 'input',
             debounce((e: Event) => {
                 // Parse and validate bounds (use NaN check to preserve 0)
                 const parsed = parseFloat((e.target as HTMLInputElement).value);
@@ -1447,7 +1469,7 @@ export function bindConfigEvents(): void {
                 store.calcParams.dailyThreshold = validated.value;
                 store.saveConfig();
                 if (store.rawEntries) runCalculation();
-            }, 300)
+            }, 300) as EventListener
         );
     }
 
@@ -1455,15 +1477,14 @@ export function bindConfigEvents(): void {
     const weeklyEl = document.getElementById('configWeekly') as HTMLInputElement | null;
     if (weeklyEl) {
         weeklyEl.value = String(store.calcParams.weeklyThreshold);
-        weeklyEl.addEventListener(
-            'input',
+        trackListener(weeklyEl, 'input',
             debounce((e: Event) => {
                 const parsedWeekly = parseFloat((e.target as HTMLInputElement).value);
                 const validatedWeekly = validateInputBounds('weeklyThreshold', Number.isNaN(parsedWeekly) ? 40 : parsedWeekly);
                 store.calcParams.weeklyThreshold = validatedWeekly.value;
                 store.saveConfig();
                 if (store.rawEntries) runCalculation();
-            }, 300)
+            }, 300) as EventListener
         );
     }
 
@@ -1472,8 +1493,7 @@ export function bindConfigEvents(): void {
     const multEl = document.getElementById('configMultiplier') as HTMLInputElement | null;
     if (multEl) {
         multEl.value = String(store.calcParams.overtimeMultiplier);
-        multEl.addEventListener(
-            'input',
+        trackListener(multEl, 'input',
             debounce((e: Event) => {
                 // Parse and validate bounds (use NaN check to preserve 0)
                 const parsedMult = parseFloat((e.target as HTMLInputElement).value);
@@ -1481,7 +1501,7 @@ export function bindConfigEvents(): void {
                 store.calcParams.overtimeMultiplier = validatedMult.value;
                 store.saveConfig();
                 if (store.rawEntries) runCalculation();
-            }, 300)
+            }, 300) as EventListener
         );
     }
 
@@ -1499,7 +1519,7 @@ export function bindConfigEvents(): void {
         enableTieredOTEl.checked = store.config.enableTieredOT;
         updateTier2Visibility(store.config.enableTieredOT);
 
-        enableTieredOTEl.addEventListener('change', () => {
+        trackListener(enableTieredOTEl, 'change', (() => {
             store.config.enableTieredOT = enableTieredOTEl.checked;
 
             // When enabling Tiered OT, sync tier2Multiplier to match regular OT multiplier
@@ -1516,7 +1536,7 @@ export function bindConfigEvents(): void {
             store.saveConfig();
             updateTier2Visibility(enableTieredOTEl.checked);
             if (store.rawEntries) runCalculation();
-        });
+        }) as EventListener);
     }
 
     // Tier 2 Threshold (OT hours before switching to tier 2 multiplier)
@@ -1527,15 +1547,14 @@ export function bindConfigEvents(): void {
     ) as HTMLInputElement | null;
     if (tier2ThresholdEl) {
         tier2ThresholdEl.value = String(store.calcParams.tier2ThresholdHours ?? 0);
-        tier2ThresholdEl.addEventListener(
-            'input',
+        trackListener(tier2ThresholdEl, 'input',
             debounce((e: Event) => {
                 const parsedT2Thresh = parseFloat((e.target as HTMLInputElement).value);
                 const validatedT2Thresh = validateInputBounds('tier2ThresholdHours', Number.isNaN(parsedT2Thresh) ? 0 : parsedT2Thresh);
                 store.calcParams.tier2ThresholdHours = validatedT2Thresh.value;
                 store.saveConfig();
                 if (store.rawEntries) runCalculation();
-            }, 300)
+            }, 300) as EventListener
         );
     }
 
@@ -1545,15 +1564,14 @@ export function bindConfigEvents(): void {
     ) as HTMLInputElement | null;
     if (tier2MultiplierEl) {
         tier2MultiplierEl.value = String(store.calcParams.tier2Multiplier ?? 2.0);
-        tier2MultiplierEl.addEventListener(
-            'input',
+        trackListener(tier2MultiplierEl, 'input',
             debounce((e: Event) => {
                 const parsedT2Mult = parseFloat((e.target as HTMLInputElement).value);
                 const validatedT2Mult = validateInputBounds('tier2Multiplier', Number.isNaN(parsedT2Mult) ? 2.0 : parsedT2Mult);
                 store.calcParams.tier2Multiplier = validatedT2Mult.value;
                 store.saveConfig();
                 if (store.rawEntries) runCalculation();
-            }, 300)
+            }, 300) as EventListener
         );
     }
 
@@ -1566,11 +1584,11 @@ export function bindConfigEvents(): void {
     const configToggle = document.getElementById('configToggle');
     const configContent = document.getElementById('configContent');
     if (configToggle && configContent) {
-        configToggle.addEventListener('click', () => {
+        trackListener(configToggle, 'click', (() => {
             const isCollapsed = configToggle.classList.toggle('collapsed');
             configContent.classList.toggle('hidden');
             configToggle.setAttribute('aria-expanded', String(!isCollapsed));
-        });
+        }) as EventListener);
     }
 
     // ========== Tab Navigation (Summary vs Detailed) ==========
@@ -1587,13 +1605,14 @@ export function bindConfigEvents(): void {
         };
 
         tabButtons.forEach((btn) => {
-            btn.addEventListener('click', () => activate(btn.dataset.tab));
-            btn.addEventListener('keydown', (e: KeyboardEvent) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
+            trackListener(btn, 'click', (() => activate(btn.dataset.tab)) as EventListener);
+            trackListener(btn, 'keydown', ((e: Event) => {
+                const ke = e as KeyboardEvent;
+                if (ke.key === 'Enter' || ke.key === ' ') {
+                    ke.preventDefault();
                     activate(btn.dataset.tab);
                 }
-            });
+            }) as EventListener);
         });
     }
 
@@ -1602,11 +1621,11 @@ export function bindConfigEvents(): void {
     // CSV includes formula injection protection (see export.ts)
     const exportBtn = document.getElementById('exportBtn');
     if (exportBtn) {
-        exportBtn.addEventListener('click', async () => {
+        trackListener(exportBtn, 'click', (async () => {
             if (store.analysisResults) {
                 await downloadCsv(store.analysisResults);
             }
-        });
+        }) as EventListener);
     }
 
     // ========== Refresh Button ==========
@@ -1614,12 +1633,12 @@ export function bindConfigEvents(): void {
     // Clears the report cache and calls handleGenerateReport with forceRefresh=true
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
+        trackListener(refreshBtn, 'click', (() => {
             // Clear cached report data
             store.clearReportCache();
             // Fetch fresh data from Clockify API
             handleGenerateReport(true);
-        });
+        }) as EventListener);
     }
 
     // ========== Date Range Selection ==========
@@ -1652,10 +1671,10 @@ export function bindConfigEvents(): void {
 
     // Listen for changes to manual date inputs
     if (startInput) {
-        startInput.addEventListener('change', queueAutoGenerate);
+        trackListener(startInput, 'change', queueAutoGenerate as EventListener);
     }
     if (endInput) {
-        endInput.addEventListener('change', queueAutoGenerate);
+        trackListener(endInput, 'change', queueAutoGenerate as EventListener);
     }
 
     // ========== Date Preset Buttons ==========
@@ -1663,86 +1682,101 @@ export function bindConfigEvents(): void {
     // Each preset calculates the appropriate date range and triggers report generation
 
     // "This Week" - Monday (start of week) to today
-    document.getElementById('datePresetThisWeek')?.addEventListener('click', () => {
-        const now = new Date();
-        const dayOfWeek = now.getUTCDay();
-        // Calculate offset to Monday (ISO 8601: Monday = 1, Sunday = 0)
-        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-        const start = new Date(
-            Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + mondayOffset)
-        );
-        const end = new Date(
-            Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-        );
-        setDateRange(start, end);
-        queueAutoGenerate();
-    });
+    const thisWeekBtn = document.getElementById('datePresetThisWeek');
+    if (thisWeekBtn) {
+        trackListener(thisWeekBtn, 'click', (() => {
+            const now = new Date();
+            const dayOfWeek = now.getUTCDay();
+            // Calculate offset to Monday (ISO 8601: Monday = 1, Sunday = 0)
+            const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+            const start = new Date(
+                Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + mondayOffset)
+            );
+            const end = new Date(
+                Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+            );
+            setDateRange(start, end);
+            queueAutoGenerate();
+        }) as EventListener);
+    }
 
     // "Last Week" - Last Monday to last Sunday
-    document.getElementById('datePresetLastWeek')?.addEventListener('click', () => {
-        const now = new Date();
-        const dayOfWeek = now.getUTCDay();
-        // Calculate offsets to last week's Monday and Sunday
-        const lastMondayOffset = dayOfWeek === 0 ? -13 : -6 - dayOfWeek;
-        const lastSundayOffset = dayOfWeek === 0 ? -7 : -dayOfWeek;
-        const start = new Date(
-            Date.UTC(
-                now.getUTCFullYear(),
-                now.getUTCMonth(),
-                now.getUTCDate() + lastMondayOffset
-            )
-        );
-        const end = new Date(
-            Date.UTC(
-                now.getUTCFullYear(),
-                now.getUTCMonth(),
-                now.getUTCDate() + lastSundayOffset
-            )
-        );
-        setDateRange(start, end);
-        queueAutoGenerate();
-    });
+    const lastWeekBtn = document.getElementById('datePresetLastWeek');
+    if (lastWeekBtn) {
+        trackListener(lastWeekBtn, 'click', (() => {
+            const now = new Date();
+            const dayOfWeek = now.getUTCDay();
+            // Calculate offsets to last week's Monday and Sunday
+            const lastMondayOffset = dayOfWeek === 0 ? -13 : -6 - dayOfWeek;
+            const lastSundayOffset = dayOfWeek === 0 ? -7 : -dayOfWeek;
+            const start = new Date(
+                Date.UTC(
+                    now.getUTCFullYear(),
+                    now.getUTCMonth(),
+                    now.getUTCDate() + lastMondayOffset
+                )
+            );
+            const end = new Date(
+                Date.UTC(
+                    now.getUTCFullYear(),
+                    now.getUTCMonth(),
+                    now.getUTCDate() + lastSundayOffset
+                )
+            );
+            setDateRange(start, end);
+            queueAutoGenerate();
+        }) as EventListener);
+    }
 
     // "Last 2 Weeks" - 14 days ago to today
-    document.getElementById('datePresetLast2Weeks')?.addEventListener('click', () => {
-        const now = new Date();
-        const start = new Date(
-            Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 13)
-        );
-        const end = new Date(
-            Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-        );
-        setDateRange(start, end);
-        queueAutoGenerate();
-    });
+    const last2WeeksBtn = document.getElementById('datePresetLast2Weeks');
+    if (last2WeeksBtn) {
+        trackListener(last2WeeksBtn, 'click', (() => {
+            const now = new Date();
+            const start = new Date(
+                Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 13)
+            );
+            const end = new Date(
+                Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+            );
+            setDateRange(start, end);
+            queueAutoGenerate();
+        }) as EventListener);
+    }
 
     // "Last Month" - First to last day of previous calendar month
-    document.getElementById('datePresetLastMonth')?.addEventListener('click', () => {
-        const now = new Date();
-        // Date.UTC(year, month, 0) gives the last day of the previous month
-        const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-        const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
-        setDateRange(start, end);
-        queueAutoGenerate();
-    });
+    const lastMonthBtn = document.getElementById('datePresetLastMonth');
+    if (lastMonthBtn) {
+        trackListener(lastMonthBtn, 'click', (() => {
+            const now = new Date();
+            // Date.UTC(year, month, 0) gives the last day of the previous month
+            const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+            const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+            setDateRange(start, end);
+            queueAutoGenerate();
+        }) as EventListener);
+    }
 
     // "This Month" - First day to last day of current calendar month
-    document.getElementById('datePresetThisMonth')?.addEventListener('click', () => {
-        const now = new Date();
-        const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-        // Date.UTC(year, month+1, 0) gives the last day of current month
-        const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
-        setDateRange(start, end);
-        queueAutoGenerate();
-    });
+    const thisMonthBtn = document.getElementById('datePresetThisMonth');
+    if (thisMonthBtn) {
+        trackListener(thisMonthBtn, 'click', (() => {
+            const now = new Date();
+            const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+            // Date.UTC(year, month+1, 0) gives the last day of current month
+            const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+            setDateRange(start, end);
+            queueAutoGenerate();
+        }) as EventListener);
+    }
 
     // ========== Detailed Report Filter Chips ==========
     // Allow users to filter detailed table by user, project, client, task, or billability
     // Uses event delegation for cleaner event binding
     const filterContainer = document.getElementById('detailedFilters');
     if (filterContainer) {
-        filterContainer.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
+        trackListener(filterContainer, 'click', ((e: Event) => {
+            const target = (e as MouseEvent).target as HTMLElement;
             // Check if the clicked element is a filter chip
             if (target.classList.contains('chip')) {
                 const filter = target.dataset.filter;
@@ -1751,7 +1785,7 @@ export function bindConfigEvents(): void {
                     UI.renderDetailedTable(store.analysisResults, filter);
                 }
             }
-        });
+        }) as EventListener);
     }
 
     // ========== Summary Table Grouping Selector ==========
@@ -1761,7 +1795,7 @@ export function bindConfigEvents(): void {
     if (groupBySelect) {
         groupBySelect.value = store.ui.summaryGroupBy || 'user';
 
-        groupBySelect.addEventListener('change', (e) => {
+        trackListener(groupBySelect, 'change', ((e: Event) => {
             // Update UI state with new grouping preference
             store.ui.summaryGroupBy = (e.target as HTMLSelectElement).value as typeof store.ui.summaryGroupBy;
             store.ui.summaryPage = 1; // Reset to page 1 on groupBy change
@@ -1771,7 +1805,7 @@ export function bindConfigEvents(): void {
             if (store.analysisResults) {
                 UI.renderSummaryTable(store.analysisResults);
             }
-        });
+        }) as EventListener);
     }
 
     // ========== Summary Billable Breakdown Expansion Toggle ==========
@@ -1783,8 +1817,8 @@ export function bindConfigEvents(): void {
         UI.renderSummaryExpandToggle();
 
         // Listen for clicks on the toggle button using event delegation
-        summaryExpandToggleContainer.addEventListener('click', (e) => {
-            const btn = (e.target as HTMLElement).closest('#summaryExpandToggle');
+        trackListener(summaryExpandToggleContainer, 'click', ((e: Event) => {
+            const btn = ((e as MouseEvent).target as HTMLElement).closest('#summaryExpandToggle');
             if (!btn) return;
 
             // Toggle expanded state
@@ -1799,7 +1833,7 @@ export function bindConfigEvents(): void {
             if (store.analysisResults) {
                 UI.renderSummaryTable(store.analysisResults);
             }
-        });
+        }) as EventListener);
     }
 
     // ========== Clear All Data Button ==========
@@ -1807,13 +1841,13 @@ export function bindConfigEvents(): void {
     // Shows a confirmation dialog before proceeding
     const clearDataBtn = document.getElementById('clearAllDataBtn');
     if (clearDataBtn) {
-        clearDataBtn.addEventListener('click', () => {
+        trackListener(clearDataBtn, 'click', (() => {
             // Show confirmation dialog; if confirmed, clear all data and reload
             UI.showClearDataConfirmation(() => {
                 store.clearAllData();
                 location.reload();
             });
-        });
+        }) as EventListener);
     }
 }
 
@@ -2420,8 +2454,33 @@ async function initCalculationWorker(): Promise<boolean> {
  * Serializes store data for worker transfer.
  * Maps are converted to arrays for structured cloning.
  */
+// PERF-2: Cache serialized store for worker — only re-serialize if data changed
+interface WorkerStoreSnapshot {
+    users: User[];
+    profiles: [string, unknown][];
+    holidays: [string, [string, unknown][]][];
+    timeOff: [string, [string, unknown][]][];
+    overrides: Record<string, UserOverride>;
+    config: OvertimeConfig;
+    calcParams: CalculationParams;
+}
+let _workerStoreCache: WorkerStoreSnapshot | null = null;
+let _workerStoreCacheRefs: { users: unknown; profiles: unknown; holidays: unknown; timeOff: unknown; overrides: unknown; config: unknown; calcParams: unknown } | null = null;
+
 function serializeStoreForWorker() {
-    return {
+    // Check reference equality to skip re-serialization when data hasn't changed
+    if (_workerStoreCache && _workerStoreCacheRefs &&
+        _workerStoreCacheRefs.users === store.users &&
+        _workerStoreCacheRefs.profiles === store.profiles &&
+        _workerStoreCacheRefs.holidays === store.holidays &&
+        _workerStoreCacheRefs.timeOff === store.timeOff &&
+        _workerStoreCacheRefs.overrides === store.overrides &&
+        _workerStoreCacheRefs.config === store.config &&
+        _workerStoreCacheRefs.calcParams === store.calcParams) {
+        return _workerStoreCache;
+    }
+
+    _workerStoreCache = {
         users: store.users,
         profiles: Array.from(store.profiles.entries()),
         holidays: Array.from(store.holidays.entries()).map(([userId, map]) => [
@@ -2436,6 +2495,16 @@ function serializeStoreForWorker() {
         config: store.config,
         calcParams: store.calcParams,
     };
+    _workerStoreCacheRefs = {
+        users: store.users,
+        profiles: store.profiles,
+        holidays: store.holidays,
+        timeOff: store.timeOff,
+        overrides: store.overrides,
+        config: store.config,
+        calcParams: store.calcParams,
+    };
+    return _workerStoreCache;
 }
 
 /**
