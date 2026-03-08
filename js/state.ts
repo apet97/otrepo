@@ -1053,9 +1053,34 @@ class Store {
      * @private
      */
     private _migrateOverrideFormat(): void {
+        const numericFields = ['capacity', 'multiplier', 'tier2Threshold', 'tier2Multiplier'] as const;
+
+        /** CQ-4: Normalize a single override record's string values to numbers */
+        const normalizeFields = (obj: Record<string, unknown>): void => {
+            for (const f of numericFields) {
+                if (obj[f] != null && typeof obj[f] === 'string') {
+                    const n = parseFloat(obj[f] as string);
+                    obj[f] = Number.isFinite(n) ? n : undefined;
+                }
+            }
+        };
+
         Object.keys(this.overrides).forEach((userId) => {
-            if (!this.overrides[userId].mode) {
-                this.overrides[userId].mode = 'global';
+            const ov = this.overrides[userId];
+            if (!ov.mode) {
+                ov.mode = 'global';
+            }
+            // CQ-4: Normalize legacy string override values to numbers
+            normalizeFields(ov as unknown as Record<string, unknown>);
+            if (ov.perDayOverrides) {
+                Object.values(ov.perDayOverrides).forEach((d) =>
+                    normalizeFields(d as unknown as Record<string, unknown>)
+                );
+            }
+            if (ov.weeklyOverrides) {
+                Object.values(ov.weeklyOverrides).forEach((w) =>
+                    normalizeFields(w as unknown as Record<string, unknown>)
+                );
             }
         });
     }
@@ -1430,16 +1455,16 @@ class Store {
                 perDayOverrides[dateKey] = {};
             }
 
-            if (globalCapacity !== undefined && globalCapacity !== '') {
+            if (globalCapacity !== undefined) {
                 perDayOverrides[dateKey].capacity = globalCapacity;
             }
-            if (globalMultiplier !== undefined && globalMultiplier !== '') {
+            if (globalMultiplier !== undefined) {
                 perDayOverrides[dateKey].multiplier = globalMultiplier;
             }
-            if (globalTier2Threshold !== undefined && globalTier2Threshold !== '') {
+            if (globalTier2Threshold !== undefined) {
                 perDayOverrides[dateKey].tier2Threshold = globalTier2Threshold;
             }
-            if (globalTier2Multiplier !== undefined && globalTier2Multiplier !== '') {
+            if (globalTier2Multiplier !== undefined) {
                 perDayOverrides[dateKey].tier2Multiplier = globalTier2Multiplier;
             }
         });
@@ -1526,16 +1551,16 @@ class Store {
                 weeklyOverrides[weekday] = {};
             }
             // Mirror global override values across every weekday entry for convenience
-            if (override.capacity !== undefined && override.capacity !== '') {
+            if (override.capacity !== undefined) {
                 weeklyOverrides[weekday].capacity = override.capacity;
             }
-            if (override.multiplier !== undefined && override.multiplier !== '') {
+            if (override.multiplier !== undefined) {
                 weeklyOverrides[weekday].multiplier = override.multiplier;
             }
-            if (override.tier2Threshold !== undefined && override.tier2Threshold !== '') {
+            if (override.tier2Threshold !== undefined) {
                 weeklyOverrides[weekday].tier2Threshold = override.tier2Threshold;
             }
-            if (override.tier2Multiplier !== undefined && override.tier2Multiplier !== '') {
+            if (override.tier2Multiplier !== undefined) {
                 weeklyOverrides[weekday].tier2Multiplier = override.tier2Multiplier;
             }
         });

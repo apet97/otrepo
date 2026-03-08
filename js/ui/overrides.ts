@@ -230,7 +230,7 @@ export function renderOverridesPage(): void {
  */
 function renderPerDayInputs(
     userId: string,
-    perDayOverrides: Record<string, { capacity?: string | number; multiplier?: string | number; tier2Threshold?: string | number; tier2Multiplier?: string | number }>,
+    perDayOverrides: Record<string, { capacity?: number; multiplier?: number; tier2Threshold?: number; tier2Multiplier?: number }>,
     _profileCapacity: number | undefined,
     defaultPlaceholder: number
 ): string {
@@ -332,7 +332,7 @@ function renderPerDayInputs(
  */
 function renderWeeklyInputs(
     userId: string,
-    weeklyOverrides: Record<string, { capacity?: string | number; multiplier?: string | number; tier2Threshold?: string | number; tier2Multiplier?: string | number }>,
+    weeklyOverrides: Record<string, { capacity?: number; multiplier?: number; tier2Threshold?: number; tier2Multiplier?: number }>,
     _profileCapacity: number | undefined,
     defaultPlaceholder: number
 ): string {

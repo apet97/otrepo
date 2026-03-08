@@ -584,7 +584,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### CQ-2: DRY violation in calc.ts override resolution (4 identical functions)
+### [RESOLVED] CQ-2: DRY violation in calc.ts override resolution (4 identical functions)
 
 - **Severity:** Medium
 - **File:** `js/calc.ts`
@@ -604,7 +604,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### CQ-4: TypeScript override values typed as string|number instead of normalized number
+### [RESOLVED] CQ-4: TypeScript override values typed as string|number instead of normalized number
 
 - **Severity:** Medium
 - **File:** `js/types.ts`

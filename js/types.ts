@@ -446,13 +446,13 @@ export interface CalculationParams {
  */
 export interface PerDayOverride {
     /** Capacity for specific day in hours */
-    capacity?: string | number;
+    capacity?: number;
     /** Multiplier for specific day */
-    multiplier?: string | number;
+    multiplier?: number;
     /** Tier 2 threshold for specific day */
-    tier2Threshold?: string | number;
+    tier2Threshold?: number;
     /** Tier 2 multiplier for specific day */
-    tier2Multiplier?: string | number;
+    tier2Multiplier?: number;
 }
 
 /**
@@ -460,13 +460,13 @@ export interface PerDayOverride {
  */
 export interface WeeklyOverride {
     /** Capacity for specific weekday in hours */
-    capacity?: string | number;
+    capacity?: number;
     /** Multiplier for specific weekday */
-    multiplier?: string | number;
+    multiplier?: number;
     /** Tier 2 threshold for specific weekday */
-    tier2Threshold?: string | number;
+    tier2Threshold?: number;
     /** Tier 2 multiplier for specific weekday */
-    tier2Multiplier?: string | number;
+    tier2Multiplier?: number;
 }
 
 /**
@@ -476,13 +476,13 @@ export interface UserOverride {
     /** Override mode (global, weekly, or perDay) */
     mode?: 'global' | 'weekly' | 'perDay';
     /** Global capacity override in hours */
-    capacity?: string | number;
+    capacity?: number;
     /** Global overtime multiplier */
-    multiplier?: string | number;
+    multiplier?: number;
     /** Global tier 2 threshold */
-    tier2Threshold?: string | number;
+    tier2Threshold?: number;
     /** Global tier 2 multiplier */
-    tier2Multiplier?: string | number;
+    tier2Multiplier?: number;
     /** Per-day overrides keyed by dateKey (YYYY-MM-DD) */
     perDayOverrides?: Record<string, PerDayOverride>;
     /** Weekly overrides keyed by weekday (MONDAY, TUESDAY, etc.) */

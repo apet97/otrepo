@@ -549,8 +549,10 @@ function extractRates(entry: TimeEntry, durationHours?: number): RatesConfig {
     const resolvedCostRate = costRate || costFromAmounts;
 
     // --- PROFIT RATE (only meaningful for billable entries) ---
-    // Non-billable entries have no revenue, so profit is always 0 (not negative)
-    // This prevents misleading negative profit values in financial reports
+    // BL-4: Non-billable entries force profit to zero by design. This prevents misleading
+    // negative profit values in financial reports. The cost impact of non-billable OT is
+    // visible through the cost columns instead. If showing negative profit for non-billable
+    // entries is desired, this would need a config toggle.
     const profitRate = isBillable ? resolvedEarnedRate - resolvedCostRate : 0;
 
     return {
@@ -636,254 +638,91 @@ function extractRates(entry: TimeEntry, durationHours?: number): RatesConfig {
  * @see getTimeOff - Get time-off hours (reduce capacity)
  */
 function getEffectiveCapacity(userId: string, dateKey: string, store: CalcStore): number {
-    // Look up user-specific overrides (may be undefined if no overrides exist)
-    const override = store.overrides[userId];
+    // Priorities 1-3: per-day > weekly > global user override (shared cascade)
+    const overrideVal = resolveOverrideValue('capacity', store.overrides[userId], dateKey);
+    if (overrideVal !== null) return overrideVal;
 
-    // --- PRIORITY 1: Per-day override (most specific) ---
-    // Check if user has per-day mode enabled AND has override for this exact date
-    if (override?.mode === 'perDay' && override.perDayOverrides?.[dateKey]?.capacity != null) {
-        const val = override.perDayOverrides[dateKey].capacity;
-        // Strict parsing rejects partial matches like "8hours" (unlike parseFloat)
-        const parsed = strictParseNumber(val);
-        if (parsed !== null) return parsed; // Valid capacity found, return immediately
+    // Priority 4: Profile capacity (unique to capacity — from Clockify user profile)
+    if (store.config.useProfileCapacity) {
+        const profile = store.profiles.get(userId);
+        if (profile?.workCapacityHours != null) {
+            return profile.workCapacityHours;
+        }
     }
 
-    // --- PRIORITY 2: Weekly override (day-of-week pattern) ---
-    // Check if user has weekly mode enabled AND has override for this weekday
+    // Priority 5: Global default (system-wide daily threshold)
+    return store.calcParams.dailyThreshold;
+}
+
+// ============================================================================
+// OVERRIDE RESOLUTION - Generic Lookup (CQ-2: DRY override precedence)
+// ============================================================================
+// All override fields share the same mode-gated precedence cascade:
+// per-day > weekly > global user override > default value.
+// resolveOverrideValue extracts this shared logic; the four public functions
+// are thin wrappers that supply the field name and default.
+// ============================================================================
+
+/** Override field names present on PerDayOverride, WeeklyOverride, and UserOverride */
+type OverrideFieldName = 'capacity' | 'multiplier' | 'tier2Threshold' | 'tier2Multiplier';
+
+/**
+ * Generic override resolution following the standard precedence cascade:
+ * 1. Per-day override (exact date match)
+ * 2. Weekly override (day-of-week match)
+ * 3. Global user override (all days)
+ *
+ * Returns the first valid numeric value found, or null if no override applies.
+ */
+function resolveOverrideValue(
+    field: OverrideFieldName,
+    override: UserOverride | undefined,
+    dateKey: string,
+): number | null {
+    // Priority 1: Per-day override (most specific)
+    if (override?.mode === 'perDay' && override.perDayOverrides?.[dateKey]?.[field] != null) {
+        const parsed = strictParseNumber(override.perDayOverrides[dateKey][field]);
+        if (parsed !== null) return parsed;
+    }
+
+    // Priority 2: Weekly override (day-of-week pattern)
     if (override?.mode === 'weekly' && override.weeklyOverrides) {
-        // Convert dateKey to weekday (MONDAY, TUESDAY, etc.)
         const weekday = IsoUtils.getWeekdayKey(dateKey);
-        if (override.weeklyOverrides[weekday]?.capacity != null) {
-            const val = override.weeklyOverrides[weekday].capacity;
-            const parsed = strictParseNumber(val);
+        if (override.weeklyOverrides[weekday]?.[field] != null) {
+            const parsed = strictParseNumber(override.weeklyOverrides[weekday][field]);
             if (parsed !== null) return parsed;
         }
     }
 
-    // --- PRIORITY 3: Global user override (applies to all days) ---
-    // Check if user has a global capacity override
-    if (override?.capacity != null) {
-        const parsed = strictParseNumber(override.capacity);
+    // Priority 3: Global user override
+    if (override?.[field] != null) {
+        const parsed = strictParseNumber(override[field]);
         if (parsed !== null) return parsed;
     }
 
-    // --- PRIORITY 4: Profile capacity (from Clockify user profile) ---
-    // Only use profile capacity if feature is enabled in config
-    if (store.config.useProfileCapacity) {
-        const profile = store.profiles.get(userId);
-        if (profile?.workCapacityHours != null) {
-            return profile.workCapacityHours; // Already a number from API
-        }
-    }
-
-    // --- PRIORITY 5: Global default (ultimate fallback) ---
-    // Return system-wide daily threshold (default: 8 hours)
-    return store.calcParams.dailyThreshold;
+    return null;
 }
 
 // ============================================================================
 // OVERRIDE RESOLUTION FUNCTIONS - Multipliers & Tier2 Thresholds
 // ============================================================================
-// These functions follow the same precedence hierarchy as getEffectiveCapacity:
-// per-day > weekly > global user override > global default
-// They resolve tier1/tier2 multipliers and tier2 thresholds for premium calculations.
-// ============================================================================
 
-/**
- * Gets the effective tier1 overtime multiplier for a user on a specific day.
- *
- * The overtime multiplier determines the premium rate for overtime hours.
- * For example, a multiplier of 1.5 means overtime is paid at 1.5x the regular rate.
- *
- * ## Multiplier Precedence (same as capacity)
- * 1. Per-day override (this exact date)
- * 2. Weekly override (this day of week)
- * 3. Global user override (all days)
- * 4. Global default (system-wide, default: 1.5)
- *
- * ## Multiplier Values
- * - 1.0 = No overtime premium (1x regular rate)
- * - 1.5 = Time-and-a-half (standard overtime premium)
- * - 2.0 = Double-time (weekend/holiday premium)
- *
- * @param userId - User ID to look up overrides for
- * @param dateKey - Date in YYYY-MM-DD format
- * @param store - Application store containing overrides and config
- * @returns Effective tier1 overtime multiplier (typically 1.5)
- *
- * @example
- * getEffectiveMultiplier("user123", "2024-01-20", store) // → 2.0 (weekend double-time)
- * getEffectiveMultiplier("user123", "2024-01-15", store) // → 1.5 (standard overtime)
- *
- * @see getEffectiveTier2Multiplier - Tier2 multiplier for extended overtime
- */
+/** Gets the effective tier1 overtime multiplier for a user on a specific day. */
 function getEffectiveMultiplier(userId: string, dateKey: string, store: CalcStore): number {
-    const override = store.overrides[userId];
-
-    // Priority 1: Per-day override (e.g., double-time for a specific holiday)
-    if (override?.mode === 'perDay' && override.perDayOverrides?.[dateKey]?.multiplier != null) {
-        const val = override.perDayOverrides[dateKey].multiplier;
-        const parsed = strictParseNumber(val);
-        // Stryker disable next-line ConditionalExpression: Equivalent - val is validated upstream, null never occurs
-        if (parsed !== null) return parsed;
-    }
-
-    // Priority 2: Weekly override (e.g., higher rate for weekend shifts)
-    if (override?.mode === 'weekly' && override.weeklyOverrides) {
-        const weekday = IsoUtils.getWeekdayKey(dateKey);
-        if (override.weeklyOverrides[weekday]?.multiplier != null) {
-            const val = override.weeklyOverrides[weekday].multiplier;
-            const parsed = strictParseNumber(val);
-            // Stryker disable next-line ConditionalExpression: Equivalent - val is validated upstream, null never occurs
-            if (parsed !== null) return parsed;
-        }
-    }
-
-    // Priority 3: Global user override (e.g., senior employee with higher OT rate)
-    if (override?.multiplier != null) {
-        const parsed = strictParseNumber(override.multiplier);
-        // Stryker disable next-line ConditionalExpression: Equivalent - val is validated upstream, null never occurs
-        if (parsed !== null) return parsed;
-    }
-
-    // Priority 4: Global default (typically 1.5 = time-and-a-half)
-    return store.calcParams.overtimeMultiplier;
+    return resolveOverrideValue('multiplier', store.overrides[userId], dateKey)
+        ?? store.calcParams.overtimeMultiplier;
 }
 
-/**
- * Gets the tier2 overtime threshold for a user on a specific day.
- *
- * The tier2 threshold defines how many overtime hours must accumulate (per user,
- * across the entire date range) before tier2 premium kicks in.
- *
- * ## Two-Tier Overtime Premium System
- * - **Tier1 (0 to threshold)**: All OT gets tier1 multiplier (e.g., 1.5x)
- * - **Tier2 (beyond threshold)**: Additional OT gets tier2 multiplier (e.g., 2.0x)
- *
- * Example: threshold = 10h, tier1 multiplier = 1.5, tier2 multiplier = 2.0
- * - First 10 OT hours: paid at 1.5x rate
- * - OT hours beyond 10: paid at 2.0x rate
- *
- * ## Threshold = 0 Special Case
- * If threshold is 0, tier2 never activates (all OT stays tier1).
- * This effectively disables the two-tier system.
- *
- * ## Accumulation Scope
- * The threshold is checked against **total user OT hours** across the date range,
- * NOT per-day OT. This rewards employees with high cumulative overtime.
- *
- * @param userId - User ID to look up overrides for
- * @param dateKey - Date in YYYY-MM-DD format
- * @param store - Application store containing overrides and config
- * @returns Tier2 threshold in OT hours (0 = tier2 disabled)
- *
- * @example
- * getEffectiveTier2Threshold("user123", "2024-01-15", store) // → 10 (tier2 after 10h OT)
- * getEffectiveTier2Threshold("user456", "2024-01-15", store) // → 0 (tier2 disabled)
- *
- * @see getEffectiveTier2Multiplier - Tier2 premium multiplier
- */
+/** Gets the tier2 overtime threshold for a user on a specific day. */
 function getEffectiveTier2Threshold(userId: string, dateKey: string, store: CalcStore): number {
-    const override = store.overrides[userId];
-
-    // Priority 1: Per-day override (rarely used, but available)
-    if (
-        override?.mode === 'perDay' &&
-        override.perDayOverrides?.[dateKey]?.tier2Threshold != null
-    ) {
-        const val = override.perDayOverrides[dateKey].tier2Threshold;
-        const parsed = strictParseNumber(val);
-        // Stryker disable next-line ConditionalExpression: Equivalent - val is validated upstream, null never occurs
-        if (parsed !== null) return parsed;
-    }
-
-    // Priority 2: Weekly override (e.g., different threshold for weekends)
-    if (override?.mode === 'weekly' && override.weeklyOverrides) {
-        const weekday = IsoUtils.getWeekdayKey(dateKey);
-        if (override.weeklyOverrides[weekday]?.tier2Threshold != null) {
-            const val = override.weeklyOverrides[weekday].tier2Threshold;
-            const parsed = strictParseNumber(val);
-            // Stryker disable next-line ConditionalExpression: Equivalent - val is validated upstream, null never occurs
-            if (parsed !== null) return parsed;
-        }
-    }
-
-    // Priority 3: Global user override (e.g., manager with higher threshold)
-    if (override?.tier2Threshold != null) {
-        const parsed = strictParseNumber(override.tier2Threshold);
-        // Stryker disable next-line ConditionalExpression: Equivalent - val is validated upstream, null never occurs
-        if (parsed !== null) return parsed;
-    }
-
-    // Priority 4: Global default (fallback to 0 if not configured)
-    return store.calcParams.tier2ThresholdHours || 0;
+    return resolveOverrideValue('tier2Threshold', store.overrides[userId], dateKey)
+        ?? (store.calcParams.tier2ThresholdHours || 0);
 }
 
-/**
- * Gets the tier2 overtime multiplier for a user on a specific day.
- *
- * The tier2 multiplier is the premium rate applied to overtime hours beyond
- * the tier2 threshold. It should typically be HIGHER than the tier1 multiplier.
- *
- * ## Two-Tier Premium Calculation
- * - **Tier1 premium**: `(tier1Multiplier - 1) * allOTHours * rate`
- * - **Tier2 additional premium**: `(tier2Multiplier - tier1Multiplier) * tier2Hours * rate`
- *
- * Example: tier1 = 1.5, tier2 = 2.0, regular rate = $20/hr, 15h OT (10h tier1, 5h tier2)
- * - Tier1 premium: (1.5 - 1) * 15h * $20 = $150
- * - Tier2 additional premium: (2.0 - 1.5) * 5h * $20 = $50
- * - Total OT premium: $200
- *
- * ## Important: Tier2Multiplier Should Be > Tier1Multiplier
- * If tier2Multiplier ≤ tier1Multiplier, tier2 has no effect (no additional premium).
- * The calculation logic explicitly checks this before applying tier2.
- *
- * @param userId - User ID to look up overrides for
- * @param dateKey - Date in YYYY-MM-DD format
- * @param store - Application store containing overrides and config
- * @returns Tier2 multiplier (default: 2.0 = double-time)
- *
- * @example
- * getEffectiveTier2Multiplier("user123", "2024-01-15", store) // → 2.0 (double-time)
- * getEffectiveTier2Multiplier("user456", "2024-01-15", store) // → 1.5 (disabled, same as tier1)
- *
- * @see getEffectiveMultiplier - Tier1 multiplier
- * @see getEffectiveTier2Threshold - Threshold for tier2 activation
- */
+/** Gets the tier2 overtime multiplier for a user on a specific day. */
 function getEffectiveTier2Multiplier(userId: string, dateKey: string, store: CalcStore): number {
-    const override = store.overrides[userId];
-
-    // Priority 1: Per-day override (e.g., triple-time for specific emergency shift)
-    if (
-        override?.mode === 'perDay' &&
-        override.perDayOverrides?.[dateKey]?.tier2Multiplier != null
-    ) {
-        const val = override.perDayOverrides[dateKey].tier2Multiplier;
-        const parsed = strictParseNumber(val);
-        // Stryker disable next-line ConditionalExpression: Equivalent - val is validated upstream, null never occurs
-        if (parsed !== null) return parsed;
-    }
-
-    // Priority 2: Weekly override (e.g., higher tier2 for weekend extended shifts)
-    if (override?.mode === 'weekly' && override.weeklyOverrides) {
-        const weekday = IsoUtils.getWeekdayKey(dateKey);
-        if (override.weeklyOverrides[weekday]?.tier2Multiplier != null) {
-            const val = override.weeklyOverrides[weekday].tier2Multiplier;
-            const parsed = strictParseNumber(val);
-            // Stryker disable next-line ConditionalExpression: Equivalent - val is validated upstream, null never occurs
-            if (parsed !== null) return parsed;
-        }
-    }
-
-    // Priority 3: Global user override (e.g., hazard pay for on-call personnel)
-    if (override?.tier2Multiplier != null) {
-        const parsed = strictParseNumber(override.tier2Multiplier);
-        // Stryker disable next-line ConditionalExpression: Equivalent - val is validated upstream, null never occurs
-        if (parsed !== null) return parsed;
-    }
-
-    // Priority 4: Global default (default 2.0 = double-time)
-    return store.calcParams.tier2Multiplier ?? 2.0;
+    return resolveOverrideValue('tier2Multiplier', store.overrides[userId], dateKey)
+        ?? (store.calcParams.tier2Multiplier ?? 2.0);
 }
 
 // ============================================================================
@@ -1808,7 +1647,10 @@ export function calculateAnalysis(
         if (useWeekly) {
             const weeklyThreshold = Math.max(0, calcStore.calcParams.weeklyThreshold || 0);
 
-            // Treat weeklyThreshold=0 as "weekly overtime disabled".
+            // BL-3: weeklyThreshold=0 disables OT entirely (unlike daily where threshold=0
+            // makes ALL hours OT). This asymmetry exists because daily uses capacity subtraction
+            // (capacity=0 → all hours exceed it) while weekly uses accumulator comparison
+            // (accumulator can never exceed 0 since the check is `>= threshold`).
             if (weeklyThreshold > 0) {
                 const entriesByWeek = new Map<string, TimeEntry[]>();
 
@@ -1879,14 +1721,12 @@ export function calculateAnalysis(
         }
 
         // === INITIALIZE TIER2 OVERTIME ACCUMULATOR (M9: documented behavior) ===
-        // Track cumulative OT hours for this user across the entire date range.
-        // DESIGN: The accumulator is cross-date — it sums all OT hours from the first date
-        // through the current date. The tier2 threshold is looked up per-day via
-        // getEffectiveTier2Threshold(), but is checked against this cumulative counter.
-        // This means tier2 activates when total OT across the range exceeds the threshold,
-        // not when a single day's OT exceeds it. If per-day tier2 overrides exist with
-        // different thresholds, the threshold checked changes day-to-day but the accumulator
-        // does not reset — this is intentional for "total OT in period" semantics.
+        // BL-2: The accumulator is CUMULATIVE across all days in the date range — it does
+        // NOT reset per-day. Per-day threshold changes (via overrides) affect subsequent
+        // days because the accumulator carries forward. For example, if Monday has 5h OT
+        // with threshold=10, and Tuesday has 6h OT with threshold=8, the accumulator is
+        // 11h on Tuesday and exceeds Thursday's threshold of 8h. This "total OT in period"
+        // semantic is intentional for pay-period-based tier2 calculations.
         let userOTAccumulator = 0;
 
         // === PROCESS EACH DATE IN RANGE ===
