@@ -31,6 +31,7 @@ describe('Main Logic Fixes - Holiday Expansion', () => {
             fetchUsers: jest.fn()
         };
         jest.unstable_mockModule('../../js/api.js', () => ({
+            initApi: jest.fn(),
             Api: mockApiMethods,
             resetRateLimiter: jest.fn(),
             resetCircuitBreaker: jest.fn(),

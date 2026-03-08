@@ -47,6 +47,7 @@ const mockApi = {
 };
 
 jest.unstable_mockModule('../../js/api.js', () => ({
+  initApi: jest.fn(),
   Api: mockApi,
   resetRateLimiter: jest.fn(),
   getCircuitBreakerState: jest.fn(() => ({ status: 'closed' }))

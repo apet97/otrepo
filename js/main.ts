@@ -17,7 +17,7 @@
  */
 
 import { store } from './state.js';
-import { Api, resetRateLimiter } from './api.js';
+import { Api, resetRateLimiter, initApi } from './api.js';
 import * as UI from './ui/index.js';
 import {
     IsoUtils,
@@ -32,7 +32,7 @@ import { createLogger } from './logger.js';
 import { runCalculation } from './worker-manager.js';
 import { bindConfigEvents } from './config-manager.js';
 import { handleGenerateReport } from './report-orchestrator.js';
-import type { TokenClaims } from './types.js';
+import type { TokenClaims, ApiStatus } from './types.js';
 
 // Re-export for backward compatibility with tests
 export { handleGenerateReport } from './report-orchestrator.js';
@@ -339,6 +339,20 @@ export async function init(): Promise<void> {
     initCSPReporter({
         reportToConsole: typeof process !== 'undefined' && process.env.NODE_ENV !== 'production',
         reportToSentry: true, // Enterprise: always report CSP violations for security monitoring
+    });
+
+    // Initialize API module with store-backed dependencies (CQ-3 decoupling)
+    initApi({
+        getToken: () => store.token,
+        getClaims: () => store.claims,
+        getConfig: () => store.config,
+        setApiStatus(field: keyof ApiStatus, value: number | boolean) {
+            (store.apiStatus as unknown as Record<string, number | boolean>)[field] = value;
+        },
+        setUiPaginationFlag(flag: 'paginationTruncated' | 'paginationAbortedDueToTokenExpiration') {
+            store.ui[flag] = true;
+        },
+        incrementThrottleRetry: () => store.incrementThrottleRetry(),
     });
 
     // Initialize DOM element references early so UI functions (like renderLoading) can work

@@ -740,3 +740,24 @@ export interface DiagnosticInfo {
     /** Current date range if set */
     dateRange: DateRange | null;
 }
+
+// ==================== API DEPENDENCY INJECTION ====================
+
+/**
+ * Dependency interface for the API module.
+ * Decouples api.ts from the global store singleton (CQ-3).
+ */
+export interface ApiDependencies {
+    getToken(): string | null;
+    getClaims(): TokenClaims | null;
+    getConfig(): {
+        circuitBreakerResetMs?: number;
+        circuitBreakerFailureThreshold?: number;
+        rateLimitCapacity?: number;
+        rateLimitRefillMs?: number;
+        maxPages?: number;
+    };
+    setApiStatus(field: keyof ApiStatus, value: number | boolean): void;
+    setUiPaginationFlag(flag: 'paginationTruncated' | 'paginationAbortedDueToTokenExpiration'): void;
+    incrementThrottleRetry(): void;
+}

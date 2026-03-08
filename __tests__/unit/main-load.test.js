@@ -23,6 +23,7 @@ const errorReportingMock = {
 
 jest.unstable_mockModule('../../js/ui/index.js', () => uiMock);
 jest.unstable_mockModule('../../js/api.js', () => ({
+  initApi: jest.fn(),
   Api: apiMock,
   resetRateLimiter: jest.fn(),
   resetCircuitBreaker: jest.fn(),

@@ -39,6 +39,7 @@ jest.unstable_mockModule('../../js/state.js', () => ({
 }));
 
 jest.unstable_mockModule('../../js/api.js', () => ({
+    initApi: jest.fn(),
     getCircuitBreakerState: jest.fn(() => ({
         state: 'CLOSED',
         failureCount: 0,

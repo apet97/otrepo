@@ -594,13 +594,13 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### CQ-3: api.ts tightly coupled to global store singleton
+### CQ-3: api.ts tightly coupled to global store singleton [RESOLVED]
 
 - **Severity:** Medium
 - **File:** `js/api.ts`
 - **Issue:** The API module directly imports the global `store` singleton for token, claims, throttle status, and config. This makes `api.ts` impossible to test without the real Store singleton.
 - **Impact:** Tests must mock the entire store. Any change to Store interface requires updating API tests.
-- **Fix:** Accept store as a parameter or use dependency injection. Pass only the needed values (token, claims, config).
+- **Fix:** Added `ApiDependencies` interface in types.ts and `initApi(deps)` in api.ts. All store access goes through `deps()`. Main.ts calls `initApi()` during initialization. Fallback to store-backed defaults for backward compatibility.
 
 ---
 

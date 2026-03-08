@@ -139,7 +139,7 @@
  * @see docs/guide.md - Complete API documentation
  */
 
-import { store } from './state.js';
+import { store as _fallbackStore } from './state.js';
 import { IsoUtils, classifyError, base64urlDecode } from './utils.js';
 import { DEFAULT_MAX_PAGES, HARD_MAX_PAGES_LIMIT, MAX_ENTRIES_LIMIT, PER_REQUEST_TIMEOUT_MS } from './constants.js';
 import { splitIntoBatches } from './streaming.js';
@@ -152,10 +152,44 @@ import type {
     TimeOffRequest,
     TimeOffInfo,
     ApiResponse,
+    ApiDependencies,
 } from './types.js';
 
 /** API module logger for circuit breaker and rate limiter events */
 const apiLogger = createLogger('API');
+
+// ============================================================================
+// DEPENDENCY INJECTION (CQ-3)
+// ============================================================================
+// The API module uses an injected dependencies object instead of importing
+// the global store singleton directly. Call initApi() during app initialization.
+// Falls back to a lazy store-backed default for backward compatibility with tests.
+// ============================================================================
+
+let _deps: ApiDependencies | null = null;
+
+/** Initialize the API module with its dependencies. Must be called before any API call. */
+export function initApi(d: ApiDependencies): void {
+    _deps = d;
+}
+
+/** Default store-backed implementation (lazy singleton for backward compat with tests). */
+const _defaultDeps: ApiDependencies = {
+    getToken: () => _fallbackStore.token,
+    getClaims: () => _fallbackStore.claims,
+    getConfig: () => _fallbackStore.config,
+    setApiStatus(field, value) {
+        (_fallbackStore.apiStatus as unknown as Record<string, number | boolean>)[field] = value;
+    },
+    setUiPaginationFlag(flag) {
+        _fallbackStore.ui[flag] = true;
+    },
+    incrementThrottleRetry: () => _fallbackStore.incrementThrottleRetry(),
+};
+
+function deps(): ApiDependencies {
+    return _deps ?? _defaultDeps;
+}
 
 // ============================================================================
 // TOKEN EXPIRATION VALIDATION
@@ -199,7 +233,7 @@ export function checkTokenExpiration(): {
     expiresIn: number | null;
     shouldWarn: boolean;
 } {
-    const token = store.token;
+    const token = deps().getToken();
 
     if (!token) {
         // No token means we can't authenticate — treat as expired
@@ -690,22 +724,22 @@ function recordFailure(isRetryable: boolean): void {
         newState.state = 'OPEN';
         newState.successCount = 0;
         newState.halfOpenPending = false;
-        newState.nextRetryTime = Date.now() + (store.config.circuitBreakerResetMs ?? CIRCUIT_BREAKER_CONFIG.resetTimeout);
+        newState.nextRetryTime = Date.now() + (deps().getConfig().circuitBreakerResetMs ?? CIRCUIT_BREAKER_CONFIG.resetTimeout);
         // Single atomic reference swap
         circuitBreaker = newState;
         apiLogger.warn('Circuit breaker reopened: Recovery failed');
         updateCircuitBreakerMetrics();
     } else if (
         newState.state === 'CLOSED' &&
-        newState.failureCount >= (store.config.circuitBreakerFailureThreshold ?? CIRCUIT_BREAKER_CONFIG.failureThreshold)
+        newState.failureCount >= (deps().getConfig().circuitBreakerFailureThreshold ?? CIRCUIT_BREAKER_CONFIG.failureThreshold)
     ) {
         // Too many failures, open the circuit
         newState.state = 'OPEN';
-        newState.nextRetryTime = Date.now() + (store.config.circuitBreakerResetMs ?? CIRCUIT_BREAKER_CONFIG.resetTimeout);
+        newState.nextRetryTime = Date.now() + (deps().getConfig().circuitBreakerResetMs ?? CIRCUIT_BREAKER_CONFIG.resetTimeout);
         // Single atomic reference swap
         circuitBreaker = newState;
         apiLogger.warn(
-            `Circuit breaker opened: ${newState.failureCount} consecutive failures. Will retry after ${(store.config.circuitBreakerResetMs ?? CIRCUIT_BREAKER_CONFIG.resetTimeout)}ms`
+            `Circuit breaker opened: ${newState.failureCount} consecutive failures. Will retry after ${(deps().getConfig().circuitBreakerResetMs ?? CIRCUIT_BREAKER_CONFIG.resetTimeout)}ms`
         );
         updateCircuitBreakerMetrics();
     } else {
@@ -839,9 +873,9 @@ export function resetCircuitBreaker(): void {
  */
 function resolveReportsBaseUrl(): string {
     // Extract claims from global store
-    const reportsUrlClaim = store.claims?.reportsUrl;
+    const reportsUrlClaim = deps().getClaims()?.reportsUrl;
     // Stryker disable next-line StringLiteral: Empty string fallback is defensive, behavior unchanged
-    const backendUrl = store.claims?.backendUrl || '';
+    const backendUrl = deps().getClaims()?.backendUrl || '';
 
     // Normalize backendUrl: remove trailing slashes for consistent parsing
     // Stryker disable next-line all: Trailing slash normalization is defensive
@@ -1031,7 +1065,7 @@ interface DetailedReportResponse {
  * Call this when switching workspaces or starting fresh.
  */
 export function resetRateLimiter(): void {
-    tokens = store.config.rateLimitCapacity ?? RATE_LIMIT;
+    tokens = deps().getConfig().rateLimitCapacity ?? RATE_LIMIT;
     lastRefill = Date.now();
 }
 
@@ -1150,8 +1184,8 @@ async function fetchWithAuth<T>(
     async function waitForToken(): Promise<void> {
         while (true) {
             const now = Date.now();
-            if (now - lastRefill >= (store.config.rateLimitRefillMs ?? REFILL_INTERVAL)) {
-                tokens = store.config.rateLimitCapacity ?? RATE_LIMIT;
+            if (now - lastRefill >= (deps().getConfig().rateLimitRefillMs ?? REFILL_INTERVAL)) {
+                tokens = deps().getConfig().rateLimitCapacity ?? RATE_LIMIT;
                 lastRefill = now;
             }
 
@@ -1160,7 +1194,7 @@ async function fetchWithAuth<T>(
                 return;
             }
 
-            const waitTime = (store.config.rateLimitRefillMs ?? REFILL_INTERVAL) - (now - lastRefill);
+            const waitTime = (deps().getConfig().rateLimitRefillMs ?? REFILL_INTERVAL) - (now - lastRefill);
             await delay(waitTime);
         }
     }
@@ -1168,7 +1202,7 @@ async function fetchWithAuth<T>(
     // Check circuit breaker before making request (M10: surface status to user)
     if (!canMakeRequest()) {
         apiLogger.warn('Circuit breaker open: Request blocked');
-        store.apiStatus.circuitBreakerOpen = true;
+        deps().setApiStatus('circuitBreakerOpen', true);
         incrementCounter(MetricNames.API_ERROR_COUNT);
         return { data: null, failed: true, status: 503 };
     }
@@ -1200,7 +1234,7 @@ async function fetchWithAuth<T>(
         try {
             // Merge auth headers with any caller-provided overrides, ensuring JSON responses are accepted
             const headers: Record<string, string> = {
-                'X-Addon-Token': store.token || '',
+                'X-Addon-Token': deps().getToken() || '',
                 Accept: 'application/json',
                 ...options.headers,
             };
@@ -1216,7 +1250,7 @@ async function fetchWithAuth<T>(
             // The signature is computed once per attempt (body doesn't change across retries)
             /* Stryker disable next-line all: Body signing is feature-level security behavior */
             if (options.method?.toUpperCase() === 'POST' && options.body && url.includes('/report/')) {
-                const signingKey = deriveSigningKey(store.token);
+                const signingKey = deriveSigningKey(deps().getToken());
                 if (signingKey) {
                     const signature = await computeBodySignature(options.body, signingKey);
                     headers['X-Body-Signature'] = signature;
@@ -1260,7 +1294,7 @@ async function fetchWithAuth<T>(
             // Handle Rate Limiting (429) with proper attempt tracking
             if (response.status === 429) {
                 // Track throttle retry in store for UI banner
-                store.incrementThrottleRetry();
+                deps().incrementThrottleRetry();
 
                 const retryAfterHeader = response.headers.get('Retry-After');
                 let waitMs = 5000; // Default wait time if header is missing
@@ -1461,14 +1495,14 @@ async function fetchUserEntriesPaginated(
     const allEntries: TimeEntry[] = [];
     let page = 1;
     /* istanbul ignore next -- defensive: maxPages is always set, 0 means unlimited */
-    const configuredMaxPages = store.config.maxPages ?? DEFAULT_MAX_PAGES;
+    const configuredMaxPages = deps().getConfig().maxPages ?? DEFAULT_MAX_PAGES;
     // Stryker disable next-line ConditionalExpression: Zero check enables unlimited pagination mode
     const effectiveMaxPages = configuredMaxPages === 0
         ? HARD_MAX_PAGES_LIMIT
         : Math.min(configuredMaxPages, HARD_MAX_PAGES_LIMIT);
 
     while (page <= effectiveMaxPages) {
-        const url = `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/user/${user.id}/time-entries?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}&hydrated=true&page=${page}&page-size=${PAGE_SIZE}`;
+        const url = `${deps().getClaims()?.backendUrl}${BASE_API}/${workspaceId}/user/${user.id}/time-entries?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}&hydrated=true&page=${page}&page-size=${PAGE_SIZE}`;
 
         const { data: entries, failed, status } = await fetchWithAuth<TimeEntry[]>(url, options);
 
@@ -1516,7 +1550,7 @@ export const Api = {
         while (true) {
             // API-1: Propagate abort signal so cancellation stops pagination
             const { data } = await fetchWithAuth<User[]>(
-                `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/users?page=${page}&page-size=${pageSize}`,
+                `${deps().getClaims()?.backendUrl}${BASE_API}/${workspaceId}/users?page=${page}&page-size=${pageSize}`,
                 fetchOpts
             );
             const users = Array.isArray(data) ? data : [];
@@ -1684,7 +1718,7 @@ export const Api = {
                     expiresIn: tokenStatus.expiresIn,
                     entriesFetched: allEntries.length,
                 });
-                store.ui.paginationAbortedDueToTokenExpiration = true;
+                deps().setUiPaginationFlag('paginationAbortedDueToTokenExpiration');
                 return allEntries; // Return partial results gracefully
             }
 
@@ -1819,7 +1853,7 @@ export const Api = {
                     limit: MAX_ENTRIES_LIMIT,
                     entriesFetched: allEntries.length,
                 });
-                store.ui.paginationTruncated = true;
+                deps().setUiPaginationFlag('paginationTruncated');
                 hasMore = false;
             }
 
@@ -1837,7 +1871,7 @@ export const Api = {
                 page++;
                 /* istanbul ignore next -- defensive: pagination continuation rarely reaches limit */
                 // Check against configurable max pages limit
-                const configuredMaxPages = store.config.maxPages ?? DEFAULT_MAX_PAGES;
+                const configuredMaxPages = deps().getConfig().maxPages ?? DEFAULT_MAX_PAGES;
                 /* istanbul ignore next -- defensive: maxPages === 0 is edge case for unlimited pages */
                 // Stryker disable next-line ConditionalExpression: Zero check enables unlimited pagination mode
                 const effectiveMaxPages = configuredMaxPages === 0
@@ -1847,7 +1881,7 @@ export const Api = {
                 /* istanbul ignore next -- defensive: safety limit rarely reached in normal operation */
                 if (page > effectiveMaxPages) {
                     console.warn(`Reached page limit (${effectiveMaxPages}), stopping pagination. Total entries fetched: ${allEntries.length}`);
-                    store.ui.paginationTruncated = true;
+                    deps().setUiPaginationFlag('paginationTruncated');
                     hasMore = false;
                 }
             }
@@ -1902,7 +1936,7 @@ export const Api = {
         options: FetchOptions = {}
     ): Promise<ApiResponse<RawProfileResponse>> {
         const { data, failed, status } = await fetchWithAuth<RawProfileResponse>(
-            `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/member-profile/${userId}`,
+            `${deps().getClaims()?.backendUrl}${BASE_API}/${workspaceId}/member-profile/${userId}`,
             options
         );
         return { data, failed, status };
@@ -1926,7 +1960,7 @@ export const Api = {
         endIso: string,
         options: FetchOptions = {}
     ): Promise<ApiResponse<RawHoliday[]>> {
-        const url = `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/holidays/in-period?assigned-to=${encodeURIComponent(userId)}&start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`;
+        const url = `${deps().getClaims()?.backendUrl}${BASE_API}/${workspaceId}/holidays/in-period?assigned-to=${encodeURIComponent(userId)}&start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`;
 
         const { data, failed, status } = await fetchWithAuth<RawHoliday[]>(url, options);
         return { data, failed, status };
@@ -1950,7 +1984,7 @@ export const Api = {
         options: FetchOptions = {}
     ): Promise<ApiResponse<RawTimeOffResponse | TimeOffRequest[]>> {
         // Use POST endpoint for time-off requests to filter by specific users and status
-        const url = `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/time-off/requests`;
+        const url = `${deps().getClaims()?.backendUrl}${BASE_API}/${workspaceId}/time-off/requests`;
         const pageSize = 200;
         const allRequests: TimeOffRequest[] = [];
         let page = 1;
@@ -2071,7 +2105,7 @@ export const Api = {
             failedCount = failedCount - retrySuccessCount;
         }
 
-        store.apiStatus.profilesFailed = failedCount;
+        deps().setApiStatus('profilesFailed', failedCount);
         return results;
     },
 
@@ -2101,7 +2135,7 @@ export const Api = {
         const endIso = `${endDate}T23:59:59.999Z`;
 
         if (users.length === 0) {
-            store.apiStatus.holidaysFailed = 0;
+            deps().setApiStatus('holidaysFailed', 0);
             return results;
         }
 
@@ -2198,7 +2232,7 @@ export const Api = {
             }
         }
 
-        store.apiStatus.holidaysFailed = failedCount;
+        deps().setApiStatus('holidaysFailed', failedCount);
         return results;
     },
 
@@ -2266,7 +2300,7 @@ export const Api = {
 
         if (anyFailed) {
             if (allRequests.length === 0) {
-                store.apiStatus.timeOffFailed = users.length;
+                deps().setApiStatus('timeOffFailed', users.length);
                 return new Map();
             }
             // API-5: Partial failure — some batches succeeded but not all.
@@ -2274,7 +2308,7 @@ export const Api = {
             const failedCount = users.length - allRequests.reduce(
                 (seen, r) => seen.add(r.userId || r.requesterUserId || ''), new Set<string>()
             ).size;
-            store.apiStatus.timeOffFailed = failedCount;
+            deps().setApiStatus('timeOffFailed', failedCount);
             apiLogger.warn('Partial time-off fetch failure', {
                 failedUserCount: failedCount,
                 successfulRequests: allRequests.length,
@@ -2375,7 +2409,7 @@ export const Api = {
             }
         });
 
-        store.apiStatus.timeOffFailed = 0;
+        deps().setApiStatus('timeOffFailed', 0);
         return results;
     },
 };
