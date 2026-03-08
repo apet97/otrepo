@@ -223,7 +223,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### SEC-1: sessionStorage report cache stores data unencrypted
+### [RESOLVED] SEC-1: sessionStorage report cache stores data unencrypted
 
 - **Severity:** High
 - **File:** `js/state.ts`
@@ -234,7 +234,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### SEC-2: Profile/holiday/time-off caches stored unencrypted in localStorage
+### [RESOLVED] SEC-2: Profile/holiday/time-off caches stored unencrypted in localStorage
 
 - **Severity:** High
 - **File:** `js/state.ts`
@@ -245,7 +245,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### SEC-3: Logger redaction gap for short tokens
+### [RESOLVED] SEC-3: Logger redaction gap for short tokens
 
 - **Severity:** Medium
 - **File:** `js/logger.ts`
@@ -256,7 +256,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### SEC-4: HMAC signing key derived from JWT signature (no independent entropy)
+### [RESOLVED] SEC-4: HMAC signing key derived from JWT signature (no independent entropy)
 
 - **Severity:** Medium
 - **File:** `js/crypto.ts`
@@ -266,7 +266,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### SEC-5: Legacy PBKDF2 migration uses workspace ID as key material
+### [RESOLVED] SEC-5: Legacy PBKDF2 migration uses workspace ID as key material
 
 - **Severity:** Low
 - **File:** `js/crypto.ts`
@@ -276,7 +276,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### SEC-6: Fallback key stored on globalThis
+### [RESOLVED] SEC-6: Fallback key stored on globalThis
 
 - **Severity:** Low
 - **File:** `js/crypto.ts`
@@ -286,7 +286,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### SEC-7: CSP meta tag missing worker-src directive
+### [RESOLVED] SEC-7: CSP meta tag missing worker-src directive
 
 - **Severity:** Low
 - **File:** `index.html`
@@ -350,7 +350,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### API-1: fetchUsers lacks AbortSignal support
+### [RESOLVED] API-1: fetchUsers lacks AbortSignal support
 
 - **Severity:** High
 - **File:** `js/api.ts`
@@ -375,7 +375,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### API-2: Circuit breaker HALF_OPEN allows unbounded concurrent requests
+### [RESOLVED] API-2: Circuit breaker HALF_OPEN allows unbounded concurrent requests
 
 - **Severity:** Medium
 - **File:** `js/api.ts`
@@ -386,7 +386,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### API-3: Exponential backoff lacks jitter
+### [RESOLVED] API-3: Exponential backoff lacks jitter
 
 - **Severity:** Medium
 - **File:** `js/api.ts`
@@ -396,7 +396,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### API-4: Holiday dedup sampling uses first N users instead of random sample
+### [RESOLVED] API-4: Holiday dedup sampling uses first N users instead of random sample
 
 - **Severity:** Medium
 - **File:** `js/api.ts`
@@ -407,7 +407,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### API-5: fetchTimeOffRequests silently continues on batch failure
+### [RESOLVED] API-5: fetchTimeOffRequests silently continues on batch failure
 
 - **Severity:** Low
 - **File:** `js/api.ts`

@@ -590,6 +590,8 @@ interface CircuitBreakerState {
     successCount: number;
     lastFailureTime: number | null;
     nextRetryTime: number | null;
+    /** API-2: Track whether a HALF_OPEN probe request is already in flight */
+    halfOpenPending: boolean;
 }
 
 /**
@@ -601,6 +603,7 @@ let circuitBreaker: CircuitBreakerState = {
     successCount: 0,
     lastFailureTime: null,
     nextRetryTime: null,
+    halfOpenPending: false,
 };
 
 /**
@@ -638,6 +641,7 @@ function recordSuccess(): void {
     const newState = { ...circuitBreaker };
 
     if (newState.state === 'HALF_OPEN') {
+        newState.halfOpenPending = false;
         newState.successCount++;
         if (newState.successCount >= CIRCUIT_BREAKER_CONFIG.successThreshold) {
             // Recovered! Close the circuit
@@ -685,6 +689,7 @@ function recordFailure(isRetryable: boolean): void {
         // Failed during recovery test, reopen circuit
         newState.state = 'OPEN';
         newState.successCount = 0;
+        newState.halfOpenPending = false;
         newState.nextRetryTime = Date.now() + (store.config.circuitBreakerResetMs ?? CIRCUIT_BREAKER_CONFIG.resetTimeout);
         // Single atomic reference swap
         circuitBreaker = newState;
@@ -726,6 +731,7 @@ function canMakeRequest(): boolean {
             // Transition to HALF_OPEN to test recovery
             circuitBreaker.state = 'HALF_OPEN';
             circuitBreaker.successCount = 0;
+            circuitBreaker.halfOpenPending = true;
             apiLogger.info('Circuit breaker half-open: Testing recovery');
             updateCircuitBreakerMetrics();
             return true;
@@ -733,7 +739,11 @@ function canMakeRequest(): boolean {
         return false;
     }
 
-    // HALF_OPEN: Allow limited requests to test recovery
+    // API-2: HALF_OPEN allows only 1 probe request at a time.
+    // If a probe is already in flight, block additional requests.
+    if (circuitBreaker.halfOpenPending) {
+        return false;
+    }
     return true;
 }
 
@@ -765,6 +775,7 @@ export function resetCircuitBreaker(): void {
         successCount: 0,
         lastFailureTime: null,
         nextRetryTime: null,
+        halfOpenPending: false,
     };
     updateCircuitBreakerMetrics();
 }
@@ -1384,7 +1395,8 @@ async function fetchWithAuth<T>(
             // Retry network/API errors with exponential backoff
             /* Stryker disable all: Retry logic - timing and logging not observable in unit tests */
             if (attempt < retries) {
-                const backoffTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s...
+                // API-3: Add jitter to prevent thundering herd on shared failures
+                const backoffTime = Math.pow(2, attempt) * 1000 * (0.5 + Math.random() * 0.5);
                 const elapsedTime = Date.now() - startTime;
                 /* istanbul ignore if -- requires real network delays to trigger timeout condition */
                 if (elapsedTime + backoffTime > MAX_TOTAL_RETRY_TIME_MS) {
@@ -1492,14 +1504,16 @@ export const Api = {
      * @param workspaceId - The Clockify workspace ID.
      * @returns List of users.
      */
-    async fetchUsers(workspaceId: string): Promise<User[]> {
+    async fetchUsers(workspaceId: string, signal?: AbortSignal): Promise<User[]> {
         const allUsers: User[] = [];
         let page = 1;
         const pageSize = PAGE_SIZE;
 
         while (true) {
+            // API-1: Propagate abort signal so cancellation stops pagination
             const { data } = await fetchWithAuth<User[]>(
-                `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/users?page=${page}&page-size=${pageSize}`
+                `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/users?page=${page}&page-size=${pageSize}`,
+                signal ? { signal } : {}
             );
             const users = Array.isArray(data) ? data : [];
             allUsers.push(...users);
@@ -2246,9 +2260,21 @@ export const Api = {
             }
         }
 
-        if (anyFailed && allRequests.length === 0) {
-            store.apiStatus.timeOffFailed = users.length;
-            return new Map();
+        if (anyFailed) {
+            if (allRequests.length === 0) {
+                store.apiStatus.timeOffFailed = users.length;
+                return new Map();
+            }
+            // API-5: Partial failure — some batches succeeded but not all.
+            // Surface a warning so the user knows time-off data may be incomplete.
+            const failedCount = users.length - allRequests.reduce(
+                (seen, r) => seen.add(r.userId || r.requesterUserId || ''), new Set<string>()
+            ).size;
+            store.apiStatus.timeOffFailed = failedCount;
+            apiLogger.warn('Partial time-off fetch failure', {
+                failedUserCount: failedCount,
+                successfulRequests: allRequests.length,
+            });
         }
 
         // Build per-user per-date map
