@@ -49,14 +49,6 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
   });
 
   describe('Worker Initialization', () => {
-    it('should post ready message on initialization', async () => {
-      // Import the worker module (this triggers initialization)
-      await import('../../js/calc.worker.js');
-
-      // Verify ready message was posted
-      expect(mockPostMessage).toHaveBeenCalledWith({ type: 'ready' });
-    });
-
     it('should set up onmessage handler', async () => {
       await import('../../js/calc.worker.js');
 
@@ -65,58 +57,57 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
     });
   });
 
-  describe('Message Type Handling', () => {
+  describe('WorkerPool Protocol', () => {
     beforeEach(async () => {
       await import('../../js/calc.worker.js');
       mockPostMessage.mockClear();
     });
 
-    it('should reject unknown message types with error', () => {
-      const unknownMessage = {
-        data: {
-          type: 'unknown_type',
-          payload: {}
+    it('should accept { taskId, payload } format from WorkerPool', () => {
+      const payload = {
+        entries: [],
+        dateRange: { start: '2025-01-01', end: '2025-01-31' },
+        store: {
+          users: [],
+          profiles: [],
+          holidays: [],
+          timeOff: [],
+          overrides: {},
+          config: {},
+          calcParams: {}
         }
       };
 
-      workerOnMessage(unknownMessage);
+      mockCalculateAnalysis.mockReturnValue([]);
+
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'error',
-        error: 'Unknown message type: unknown_type'
+        taskId: 'task-1',
+        result: []
       });
     });
 
-    it('should reject message with undefined type', () => {
-      const undefinedTypeMessage = {
-        data: {
-          type: undefined,
-          payload: {}
+    it('should echo back the taskId in response', () => {
+      const payload = {
+        entries: [],
+        dateRange: { start: '2025-01-01', end: '2025-01-31' },
+        store: {
+          users: [],
+          profiles: [],
+          holidays: [],
+          timeOff: [],
+          overrides: {},
+          config: {},
+          calcParams: {}
         }
       };
 
-      workerOnMessage(undefinedTypeMessage);
+      mockCalculateAnalysis.mockReturnValue([]);
 
-      expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'error',
-        error: 'Unknown message type: undefined'
-      });
-    });
+      workerOnMessage({ data: { taskId: 'task-42-1234567890', payload } });
 
-    it('should reject empty string message type', () => {
-      const emptyTypeMessage = {
-        data: {
-          type: '',
-          payload: {}
-        }
-      };
-
-      workerOnMessage(emptyTypeMessage);
-
-      expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'error',
-        error: 'Unknown message type: '
-      });
+      expect(mockPostMessage.mock.calls[0][0].taskId).toBe('task-42-1234567890');
     });
   });
 
@@ -163,7 +154,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         totals: { regular: 8, overtime: 0, total: 8 }
       }]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       // Verify calculateAnalysis was called
       expect(mockCalculateAnalysis).toHaveBeenCalled();
@@ -188,7 +179,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         totals: {}
       }]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [, storeArg] = mockCalculateAnalysis.mock.calls[0];
 
@@ -208,7 +199,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         totals: {}
       }]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [, storeArg] = mockCalculateAnalysis.mock.calls[0];
 
@@ -227,7 +218,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         totals: {}
       }]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [entriesArg] = mockCalculateAnalysis.mock.calls[0];
 
@@ -245,7 +236,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         totals: {}
       }]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [, , dateRangeArg] = mockCalculateAnalysis.mock.calls[0];
 
@@ -264,7 +255,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         totals: {}
       }]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [, storeArg] = mockCalculateAnalysis.mock.calls[0];
 
@@ -282,7 +273,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         totals: {}
       }]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [, storeArg] = mockCalculateAnalysis.mock.calls[0];
 
@@ -298,7 +289,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         totals: {}
       }]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [, storeArg] = mockCalculateAnalysis.mock.calls[0];
 
@@ -340,12 +331,12 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         totals: { regular: 16, overtime: 0, total: 16 }
       }]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
-      // Verify result message structure
+      // Verify result message uses WorkerPool protocol
       expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'result',
-        payload: [{
+        taskId: 'task-1',
+        result: [{
           userId: 'user0',
           userName: 'Test User',
           days: [
@@ -378,11 +369,11 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         totals: {}
       }]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'result',
-        payload: [{
+        taskId: 'task-1',
+        result: [{
           userId: 'user0',
           days: [],
           totals: {}
@@ -410,9 +401,9 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         { userId: 'user1', days: new Map(), totals: { total: 45 } }
       ]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
-      const resultPayload = mockPostMessage.mock.calls[0][0].payload;
+      const resultPayload = mockPostMessage.mock.calls[0][0].result;
       expect(resultPayload).toHaveLength(2);
       expect(resultPayload[0].userId).toBe('user0');
       expect(resultPayload[1].userId).toBe('user1');
@@ -444,10 +435,10 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         throw new Error('Calculation failed: invalid entry');
       });
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'error',
+        taskId: 'task-1',
         error: 'Calculation failed: invalid entry'
       });
     });
@@ -471,10 +462,10 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         throw 'String error thrown';
       });
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'error',
+        taskId: 'task-1',
         error: 'String error thrown'
       });
     });
@@ -498,10 +489,10 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         throw null;
       });
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'error',
+        taskId: 'task-1',
         error: 'null'
       });
     });
@@ -525,10 +516,10 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         throw undefined;
       });
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'error',
+        taskId: 'task-1',
         error: 'undefined'
       });
     });
@@ -552,10 +543,10 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
         throw { code: 'ERR_INVALID', details: 'some details' };
       });
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'error',
+        taskId: 'task-1',
         error: '[object Object]'
       });
     });
@@ -587,7 +578,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
 
       mockCalculateAnalysis.mockReturnValue([]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [, storeArg] = mockCalculateAnalysis.mock.calls[0];
       expect(storeArg.users).toEqual([
@@ -613,7 +604,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
 
       mockCalculateAnalysis.mockReturnValue([]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [, storeArg] = mockCalculateAnalysis.mock.calls[0];
       expect(storeArg.profiles).toBeInstanceOf(Map);
@@ -637,7 +628,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
 
       mockCalculateAnalysis.mockReturnValue([]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [, storeArg] = mockCalculateAnalysis.mock.calls[0];
       expect(storeArg.holidays).toBeInstanceOf(Map);
@@ -669,7 +660,7 @@ describe('Calculation Web Worker (calc.worker.ts)', () => {
 
       mockCalculateAnalysis.mockReturnValue([]);
 
-      workerOnMessage({ data: { type: 'calculate', payload } });
+      workerOnMessage({ data: { taskId: 'task-1', payload } });
 
       const [, storeArg] = mockCalculateAnalysis.mock.calls[0];
 

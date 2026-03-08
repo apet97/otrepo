@@ -8,11 +8,11 @@ import { calculateAnalysis } from './calc.js';
 import type { TimeEntry, DateRange, UserProfile, Holiday, TimeOffInfo, UserOverride, OvertimeConfig, CalculationParams, User } from './types.js';
 
 /**
- * Worker input message structure
+ * WorkerPool protocol input: { taskId, payload }
+ * The payload contains the calculation inputs.
  */
-interface WorkerInput {
-    type: 'calculate';
-    requestId: number;
+interface WorkerPoolMessage {
+    taskId: string;
     payload: {
         entries: TimeEntry[];
         dateRange: DateRange;
@@ -28,33 +28,15 @@ interface WorkerInput {
     };
 }
 
-/**
- * Worker output message structure
- */
-interface WorkerOutput {
-    type: 'ready' | 'result' | 'error';
-    requestId?: number;
-    payload?: unknown;
-    error?: string;
-}
-
 // Web Worker context
 const ctx: Worker = self as unknown as Worker;
 
 /**
- * Handle incoming messages from the main thread
+ * Handle incoming messages from the WorkerPool.
+ * Protocol: receive { taskId, payload }, respond with { taskId, result } or { taskId, error }.
  */
-ctx.onmessage = (event: MessageEvent<WorkerInput>) => {
-    const { type, payload, requestId } = event.data;
-
-    if (type !== 'calculate') {
-        ctx.postMessage({
-            type: 'error',
-            requestId,
-            error: `Unknown message type: ${type}`,
-        } as WorkerOutput);
-        return;
-    }
+ctx.onmessage = (event: MessageEvent<WorkerPoolMessage>) => {
+    const { taskId, payload } = event.data;
 
     try {
         const { entries, dateRange, store } = payload;
@@ -84,19 +66,11 @@ ctx.onmessage = (event: MessageEvent<WorkerInput>) => {
             days: Array.from(user.days.entries()),
         }));
 
-        ctx.postMessage({
-            type: 'result',
-            requestId,
-            payload: serializedResults,
-        } as WorkerOutput);
+        ctx.postMessage({ taskId, result: serializedResults });
     } catch (error) {
         ctx.postMessage({
-            type: 'error',
-            requestId,
+            taskId,
             error: error instanceof Error ? error.message : String(error),
-        } as WorkerOutput);
+        });
     }
 };
-
-// Signal that worker is ready
-ctx.postMessage({ type: 'ready' } as WorkerOutput);

@@ -2361,22 +2361,19 @@ const WORKER_THRESHOLD = 500;
  * Lazily initialized when first large calculation is triggered.
  */
 type WorkerPayload = {
-    type: 'calculate';
-    payload: {
-        entries: TimeEntry[];
-        dateRange: DateRange;
-        store: {
-            users: typeof store.users;
-            profiles: [string, unknown][];
-            holidays: [string, [string, unknown][]][];
-            timeOff: [string, [string, unknown][]][];
-            overrides: typeof store.overrides;
-            config: typeof store.config;
-            calcParams: typeof store.calcParams;
-        };
+    entries: TimeEntry[];
+    dateRange: DateRange;
+    store: {
+        users: typeof store.users;
+        profiles: [string, unknown][];
+        holidays: [string, [string, unknown][]][];
+        timeOff: [string, [string, unknown][]][];
+        overrides: typeof store.overrides;
+        config: typeof store.config;
+        calcParams: typeof store.calcParams;
     };
 };
-type WorkerResult = { type: 'result' | 'error'; payload?: unknown; error?: string };
+type WorkerResult = unknown[];
 let calculationWorkerPool: WorkerPool<WorkerPayload, WorkerResult> | null = null;
 
 /**
@@ -2464,20 +2461,13 @@ async function runCalculationInWorker(
 
     const result = await calculationWorkerPool.execute({
         payload: {
-            type: 'calculate',
-            payload: {
-                entries,
-                dateRange,
-                store: serializeStoreForWorker(),
-            },
+            entries,
+            dateRange,
+            store: serializeStoreForWorker(),
         },
     });
 
-    if (result.type === 'error') {
-        throw new Error(result.error || 'Worker calculation failed');
-    }
-
-    return deserializeWorkerResults(result.payload as unknown[]);
+    return deserializeWorkerResults(result);
 }
 
 /**
