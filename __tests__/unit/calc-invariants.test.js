@@ -521,4 +521,59 @@ describe('Calculation Invariants - Property-Based Tests', () => {
       expect(userResult.totals.overtime).toBe(8);
     });
   });
+
+  describe('Entry Immutability (COR-3)', () => {
+    it('should not mutate input entries by adding .analysis property', () => {
+      const mockStore = TestFixtures.createStoreFixture();
+      const entries = [{
+        id: 'immutability_test_entry',
+        userId: MOCK_USER_IDS.primary,
+        userName: 'Primary User',
+        description: 'Test entry',
+        timeInterval: {
+          start: `${TEST_DATES.wednesday}T09:00:00Z`,
+          end: `${TEST_DATES.wednesday}T17:00:00Z`,
+          duration: 'PT8H'
+        },
+        hourlyRate: { amount: 5000 },
+        billable: true
+      }];
+
+      // Capture original keys before calculation
+      const originalKeys = Object.keys(entries[0]).sort();
+      expect(entries[0]).not.toHaveProperty('analysis');
+
+      calculateAnalysis(entries, mockStore, { start: TEST_DATES.wednesday, end: TEST_DATES.wednesday });
+
+      // Input entries should NOT have been mutated
+      expect(entries[0]).not.toHaveProperty('analysis');
+      expect(Object.keys(entries[0]).sort()).toEqual(originalKeys);
+    });
+
+    it('should return enriched entries with .analysis in processedEntries', () => {
+      const mockStore = TestFixtures.createStoreFixture();
+      const entries = [{
+        id: 'enrichment_test',
+        userId: MOCK_USER_IDS.primary,
+        userName: 'Primary User',
+        description: 'Test entry',
+        timeInterval: {
+          start: `${TEST_DATES.wednesday}T09:00:00Z`,
+          end: `${TEST_DATES.wednesday}T17:00:00Z`,
+          duration: 'PT8H'
+        },
+        hourlyRate: { amount: 5000 },
+        billable: true
+      }];
+
+      const results = calculateAnalysis(entries, mockStore, { start: TEST_DATES.wednesday, end: TEST_DATES.wednesday });
+      const userResult = results.find(u => u.userId === MOCK_USER_IDS.primary);
+      const day = userResult.days.get(TEST_DATES.wednesday);
+
+      // The returned entries (in days map) should have analysis
+      expect(day.entries).toHaveLength(1);
+      expect(day.entries[0].analysis).toBeDefined();
+      expect(day.entries[0].analysis.regular).toBeDefined();
+    });
+  });
 });

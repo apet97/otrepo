@@ -2522,6 +2522,37 @@ describe('Streaming CSV Export (Phase 4.1)', () => {
     expect(fullCsv).toContain('Date,User,Description');
   });
 
+  it('multi-chunk CSV has correct newlines at chunk boundaries', async () => {
+    const createElementSpy = jest.spyOn(document, 'createElement');
+    const mockLink = { setAttribute: jest.fn(), click: jest.fn(), style: {} };
+    createElementSpy.mockReturnValue(mockLink);
+    jest.spyOn(document.body, 'appendChild').mockImplementation(() => {});
+    jest.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+
+    let blobParts = null;
+    global.Blob = jest.fn((parts) => {
+      blobParts = parts;
+      return {};
+    });
+
+    // 120 users = 3 chunks (50+50+20), which creates chunk boundaries
+    await downloadCsv(makeAnalysis(120), 'test.csv');
+
+    expect(blobParts.length).toBeGreaterThan(2);
+
+    // Verify no row merging at chunk boundaries:
+    // Each data chunk (index > 0) should start with '\n'
+    for (let i = 1; i < blobParts.length; i++) {
+      expect(blobParts[i].startsWith('\n')).toBe(true);
+    }
+
+    // Verify the full concatenated CSV has no merged rows
+    const fullCsv = blobParts.join('');
+    const lines = fullCsv.split('\n').filter(l => l.trim());
+    // 1 header + 120 data rows
+    expect(lines).toHaveLength(121);
+  });
+
   it('handles empty analysis array', async () => {
     const createElementSpy = jest.spyOn(document, 'createElement');
     const mockLink = { setAttribute: jest.fn(), click: jest.fn(), style: {} };

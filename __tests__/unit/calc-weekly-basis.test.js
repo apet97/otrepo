@@ -660,4 +660,48 @@ describe('Weekly Overtime Basis Specification', () => {
       expect(userResult.totals.overtime).toBe(12);
     });
   });
+
+  describe('Weekly Sort Determinism (COR-2)', () => {
+    it('should produce deterministic OT attribution for entries with identical start times', () => {
+      const dateRange = { start: '2025-01-13', end: '2025-01-17' };
+
+      // Two entries with identical start times but different IDs
+      // Total = 42h, so 2h OT. The secondary sort key (id) should deterministically
+      // assign OT to the same entry every time.
+      const entries = [
+        new EntryBuilder().withId('entry_zzz').withUser('user0', 'User 0').onDate('2025-01-17', 9).withDuration(5).build(),
+        new EntryBuilder().withId('entry_aaa').withUser('user0', 'User 0').onDate('2025-01-17', 9).withDuration(5).build(),
+        new EntryBuilder().withUser('user0', 'User 0').onDate('2025-01-13', 9).withDuration(8).build(),
+        new EntryBuilder().withUser('user0', 'User 0').onDate('2025-01-14', 9).withDuration(8).build(),
+        new EntryBuilder().withUser('user0', 'User 0').onDate('2025-01-15', 9).withDuration(8).build(),
+        new EntryBuilder().withUser('user0', 'User 0').onDate('2025-01-16', 9).withDuration(8).build(),
+      ];
+
+      // Run calculation multiple times — results should be identical
+      const results1 = calculateAnalysis([...entries], mockStore, dateRange);
+      const results2 = calculateAnalysis([...entries], mockStore, dateRange);
+      const results3 = calculateAnalysis([...entries.reverse()], mockStore, dateRange);
+
+      const user1 = results1.find(u => u.userId === 'user0');
+      const user2 = results2.find(u => u.userId === 'user0');
+      const user3 = results3.find(u => u.userId === 'user0');
+
+      // Total OT should be identical across runs
+      expect(user1.totals.overtime).toBe(2);
+      expect(user2.totals.overtime).toBe(2);
+      expect(user3.totals.overtime).toBe(2);
+
+      // Per-entry OT attribution should also be identical
+      const getEntryOT = (result) => {
+        const day = result.days.get('2025-01-17');
+        return day.entries.map(e => ({
+          id: e.id,
+          ot: e.analysis?.overtime ?? e.analysis?.overtimeHours ?? 0
+        })).sort((a, b) => a.id.localeCompare(b.id));
+      };
+
+      expect(getEntryOT(user1)).toEqual(getEntryOT(user2));
+      expect(getEntryOT(user1)).toEqual(getEntryOT(user3));
+    });
+  });
 });
