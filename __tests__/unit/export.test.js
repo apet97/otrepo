@@ -2541,8 +2541,10 @@ describe('Streaming CSV Export (Phase 4.1)', () => {
     expect(blobParts.length).toBeGreaterThan(2);
 
     // Verify no row merging at chunk boundaries:
-    // Each data chunk (index > 0) should start with '\n'
-    for (let i = 1; i < blobParts.length; i++) {
+    // First data chunk (index 1) has no leading '\n' since header ends with '\n'.
+    // Subsequent data chunks (index > 1) start with '\n' to separate from previous chunk.
+    expect(blobParts[1].startsWith('\n')).toBe(false);
+    for (let i = 2; i < blobParts.length; i++) {
       expect(blobParts[i].startsWith('\n')).toBe(true);
     }
 

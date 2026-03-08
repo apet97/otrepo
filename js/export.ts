@@ -190,13 +190,20 @@ export async function downloadCsv(
     const headerLine = CSV_HEADERS.join(',') + '\n';
     const chunks: string[] = ['\uFEFF' + headerLine]; // BOM + header as first chunk
 
+    let isFirstDataChunk = true;
     for (let i = 0; i < analysis.length; i += CSV_CHUNK_SIZE) {
         const userChunk = analysis.slice(i, i + CSV_CHUNK_SIZE);
         const rows = buildRowsForUsers(userChunk);
         if (rows.length > 0) {
-            // Each chunk needs a leading newline so it doesn't merge
-            // with the last row of the previous chunk when Blob concatenates
-            chunks.push('\n' + rows.join('\n'));
+            if (isFirstDataChunk) {
+                // Header already ends with '\n', so first data chunk needs no leading newline
+                chunks.push(rows.join('\n'));
+                isFirstDataChunk = false;
+            } else {
+                // Subsequent chunks need a leading newline so the last row of the
+                // previous chunk doesn't merge with the first row of this chunk
+                chunks.push('\n' + rows.join('\n'));
+            }
         }
         // Yield to event loop between chunks (but not after the last one)
         if (i + CSV_CHUNK_SIZE < analysis.length) {
