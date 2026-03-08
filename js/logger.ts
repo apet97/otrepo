@@ -317,8 +317,10 @@ function sanitize(data: unknown): unknown {
     }
 
     if (typeof data === 'string') {
-        // Mask potential tokens (long alphanumeric strings)
-        return data.replace(/[a-zA-Z0-9]{32,}/g, '[REDACTED]');
+        // Mask potential tokens: long alphanumeric strings (16+ chars) and JWT patterns
+        return data
+            .replace(/eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g, '[JWT-REDACTED]')
+            .replace(/[a-zA-Z0-9]{16,}/g, '[REDACTED]');
     }
 
     if (Array.isArray(data)) {

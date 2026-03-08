@@ -1980,6 +1980,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
             if (emptyState) emptyState.classList.add('hidden');
         }, 3000);
         unrefTimerIfSupported(hideEmptyStateTimer);
+        clearReportTimeout();
         return;
     }
 
@@ -1993,6 +1994,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
             type: 'VALIDATION_ERROR',
             timestamp: new Date().toISOString(),
         });
+        clearReportTimeout();
         return;
     }
 
@@ -2004,6 +2006,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
     if (rangeDays > 365 || userDays > 50_000) {
         const confirmed = await UI.showLargeDateRangeWarning(rangeDays, store.users.length);
         if (!confirmed) {
+            clearReportTimeout();
             return; // User cancelled large range
         }
     }
@@ -2042,6 +2045,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
 
     // A newer request may have started while waiting on user prompts (large range/cache confirm).
     if (thisRequestId !== currentRequestId) {
+        clearReportTimeout();
         return;
     }
 
@@ -2089,7 +2093,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                     promise: Api.fetchAllProfiles(store.claims.workspaceId, missingUsers, {
                         signal,
                         onProgress: (fetched, phase) => UI.updateLoadingProgress(fetched, phase, missingUsers.length),
-                    }).then((profiles) => {
+                    }).then(async (profiles) => {
                         // Guard: Discard stale responses from cancelled requests
                         // This prevents race conditions where a slow response from an aborted
                         // request could overwrite data from the current request
@@ -2105,7 +2109,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                                 workingDays: profile.workingDays,
                             });
                         });
-                        store.saveProfilesCache();
+                        await store.saveProfilesCache();
                     }),
                 });
             }
@@ -2117,7 +2121,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
         // See docs/prd.md "Effective capacity adjustments" for how holidays are applied
         if (store.config.applyHolidays) {
             if (!bypassPersistentCache) {
-                store.loadHolidayCache(startDate, endDate);
+                await store.loadHolidayCache(startDate, endDate);
             } else {
                 store.holidays.clear();
             }
@@ -2133,7 +2137,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                         startDate,
                         endDate,
                         { signal, onProgress: (fetched, phase) => UI.updateLoadingProgress(fetched, phase, missingUsers.length) }
-                    ).then((holidays) => {
+                    ).then(async (holidays) => {
                         // Guard: Discard stale responses from cancelled requests
                         // This prevents race conditions where a slow response from an aborted
                         // request could overwrite data from the current request
@@ -2162,7 +2166,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                             });
                             store.holidays.set(userId, hMap);
                         });
-                        store.saveHolidayCache(startDate, endDate);
+                        await store.saveHolidayCache(startDate, endDate);
                     }),
                 });
             }
@@ -2174,7 +2178,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
         // See docs/prd.md "Effective capacity adjustments" for how time-off is applied
         if (store.config.applyTimeOff) {
             if (!bypassPersistentCache) {
-                store.loadTimeOffCache(startDate, endDate);
+                await store.loadTimeOffCache(startDate, endDate);
             } else {
                 store.timeOff.clear();
             }
@@ -2190,7 +2194,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                         startDate,
                         endDate,
                         { signal, onProgress: (fetched, phase) => UI.updateLoadingProgress(fetched, phase, missingUsers.length) }
-                    ).then((timeOff) => {
+                    ).then(async (timeOff) => {
                         // Guard: Discard stale responses from cancelled requests
                         // This prevents race conditions where a slow response from an aborted
                         // request could overwrite data from the current request
@@ -2202,7 +2206,7 @@ export async function handleGenerateReport(forceRefresh = false): Promise<void> 
                         timeOff.forEach((value, userId) => {
                             store.timeOff.set(userId, value);
                         });
-                        store.saveTimeOffCache(startDate, endDate);
+                        await store.saveTimeOffCache(startDate, endDate);
                     }),
                 });
             }
