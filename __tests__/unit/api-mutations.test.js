@@ -267,7 +267,7 @@ describe('API Module - Mutation Test Coverage', () => {
         '2025-01-02T00:00:00Z'
       );
 
-      expect(entries).toBeDefined();
+      expect(Array.isArray(entries)).toBe(true);
     });
 
     it('should handle item.value null safely', async () => {
@@ -302,7 +302,7 @@ describe('API Module - Mutation Test Coverage', () => {
         '2025-01-02T00:00:00Z'
       );
 
-      expect(entries).toBeDefined();
+      expect(Array.isArray(entries)).toBe(true);
     });
   });
 
@@ -1663,7 +1663,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const requestBody = JSON.parse(fetch.mock.calls[0][1].body);
-      expect(requestBody.detailedFilter).toBeDefined();
+      expect(requestBody.detailedFilter).toEqual(expect.objectContaining({ page: 1, pageSize: 200 }));
       expect(requestBody.detailedFilter.page).toBe(1);
       expect(requestBody.detailedFilter.pageSize).toBe(200);
     });
@@ -2639,7 +2639,7 @@ describe('API Module - Mutation Test Coverage', () => {
       const requestBody = JSON.parse(fetch.mock.calls[0][1].body);
       // amountShown is a string constant ('EARNED'), amounts is the array
       expect(requestBody.amountShown).toBe('EARNED');
-      expect(requestBody.amounts).toBeDefined();
+      expect(requestBody.amounts).toEqual(expect.arrayContaining(['EARNED', 'COST', 'PROFIT']));
       expect(requestBody.amounts).toContain('EARNED');
       expect(requestBody.amounts).toContain('COST');
       expect(requestBody.amounts).toContain('PROFIT');
@@ -2687,7 +2687,7 @@ describe('API Module - Mutation Test Coverage', () => {
         '2025-01-02T00:00:00Z'
       );
 
-      expect(entries[0].amounts).toBeDefined();
+      expect(Array.isArray(entries[0].amounts)).toBe(true);
       expect(entries[0].amounts.length).toBeGreaterThanOrEqual(3);
     });
 
@@ -2831,7 +2831,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       // Should still process valid amounts
-      expect(entries[0].amounts).toBeDefined();
+      expect(Array.isArray(entries[0].amounts)).toBe(true);
     });
 
     it('should handle type !== shownType filtering in reduce', async () => {
@@ -3133,7 +3133,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       expect(userMap.get('2025-01-15').isFullDay).toBe(true);
     });
 
@@ -3161,7 +3161,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       expect(userMap.get('2025-01-15').isFullDay).toBe(false);
     });
 
@@ -3189,7 +3189,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       expect(userMap.get('2025-01-15').isFullDay).toBe(false);
     });
 
@@ -3217,7 +3217,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       // Should have entries for 15, 16, 17
       expect(userMap.has('2025-01-15')).toBe(true);
       expect(userMap.has('2025-01-16')).toBe(true);
@@ -3248,7 +3248,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       // Should have only the start date entry when no endDate
       expect(userMap.has('2025-01-15')).toBe(true);
     });
@@ -3292,7 +3292,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       expect(userMap.has('2025-01-15')).toBe(true);
       expect(userMap.has('2025-01-16')).toBe(true);
       expect(userMap.has('2025-01-17')).toBe(true);
@@ -3416,7 +3416,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       // Should only have one entry (no expansion when dates are same)
       expect(userMap.has('2025-01-15')).toBe(true);
       expect(userMap.size).toBe(1);
@@ -3447,7 +3447,7 @@ describe('API Module - Mutation Test Coverage', () => {
 
       // Should still have user map created but empty
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       expect(userMap.size).toBe(0);
     });
 
@@ -3568,7 +3568,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       expect(userMap.has('2025-01-15')).toBe(true);
       expect(userMap.has('2025-01-16')).toBe(true);
       expect(userMap.has('2025-01-17')).toBe(true);
@@ -3624,7 +3624,7 @@ describe('API Module - Mutation Test Coverage', () => {
 
       // The user map is created before checking startKey, but no date entries added
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       expect(userMap.size).toBe(0);
     });
   });
@@ -4046,7 +4046,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const holidays = results.get('user_1');
-      expect(holidays).toBeDefined();
+      expect(Array.isArray(holidays)).toBe(true);
       expect(holidays[0].name).toBe('');
     });
 
@@ -4143,7 +4143,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       const userMap = results.get('user_1');
-      expect(userMap).toBeDefined();
+      expect(userMap).toBeInstanceOf(Map);
       // Should have only one entry for 2025-01-15
       expect(userMap.size).toBe(1);
       expect(userMap.has('2025-01-15')).toBe(true);
@@ -4876,7 +4876,7 @@ describe('API Module - Mutation Test Coverage', () => {
       );
 
       // Should process without crashing
-      expect(entries).toBeDefined();
+      expect(Array.isArray(entries)).toBe(true);
       expect(entries.length).toBe(1);
     });
   });
@@ -5028,7 +5028,7 @@ describe('API Module - Mutation Test Coverage', () => {
       const earnedAmount = entries[0].amounts.find(a =>
         String(a.type || a.amountType || '').toUpperCase() === 'EARNED'
       );
-      expect(earnedAmount).toBeDefined();
+      expect(earnedAmount).toEqual(expect.objectContaining({ value: 100 }));
     });
   });
 });

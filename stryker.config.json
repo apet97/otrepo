@@ -18,7 +18,10 @@
     "js/main.ts",
     "js/ui/summary.ts",
     "js/ui/detailed.ts",
-    "js/ui/overrides.ts"
+    "js/ui/overrides.ts",
+    "js/ui/shared.ts",
+    "js/ui/dialogs.ts",
+    "js/streaming.ts"
   ],
   "checkers": ["typescript"],
   "tsconfigFile": "tsconfig.json",

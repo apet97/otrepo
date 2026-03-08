@@ -226,7 +226,7 @@ describe('Dialogs Module', () => {
       const banner = mockElements.apiStatusBanner;
       expect(banner.innerHTML).toContain('Retry');
       const actionBtn = banner.querySelector('.error-action-btn');
-      expect(actionBtn).not.toBeNull();
+      expect(actionBtn).toBeInstanceOf(HTMLElement);
       expect(actionBtn.tagName).toBe('BUTTON');
     });
 
@@ -241,7 +241,7 @@ describe('Dialogs Module', () => {
 
       const banner = mockElements.apiStatusBanner;
       const btn = banner.querySelector('.error-action-btn');
-      expect(btn).not.toBeNull();
+      expect(btn).toBeInstanceOf(HTMLElement);
       expect(btn.tagName).toBe('BUTTON');
     });
 
@@ -257,7 +257,7 @@ describe('Dialogs Module', () => {
       });
 
       const btn = mockElements.apiStatusBanner.querySelector('.error-action-btn');
-      expect(btn).not.toBeNull();
+      expect(btn).toBeInstanceOf(HTMLElement);
       expect(btn.tagName).toBe('BUTTON');
       expect(btn.textContent).toBe('Retry');
       // The click handler calls location.reload() - verified via integration test
@@ -304,7 +304,6 @@ describe('Dialogs Module', () => {
 
       // Verify banner was created and is visible
       const banner = document.querySelector('#apiStatusBanner');
-      expect(banner).not.toBeNull();
       expect(banner).toBeInstanceOf(HTMLElement);
     });
 
@@ -322,7 +321,7 @@ describe('Dialogs Module', () => {
 
       // Verify a new banner was created with the correct class
       const banner = document.querySelector('.api-status-banner');
-      expect(banner).not.toBeNull();
+      expect(banner).toBeInstanceOf(HTMLElement);
       expect(banner.classList.contains('api-status-banner')).toBe(true);
     });
 
@@ -339,7 +338,6 @@ describe('Dialogs Module', () => {
       showError('Test error');
 
       const banner = document.getElementById('apiStatusBanner');
-      expect(banner).not.toBeNull();
       expect(banner).toBeInstanceOf(HTMLElement);
       expect(banner.parentElement).toBe(document.body);
     });
@@ -385,7 +383,7 @@ describe('Dialogs Module', () => {
       const promise = showClearDataConfirmation(callback);
       // Modal appended to DOM — click OK
       const okBtn = document.querySelector('.confirm-modal .btn-primary');
-      expect(okBtn).not.toBeNull();
+      expect(okBtn).toBeInstanceOf(HTMLElement);
       okBtn.click();
       await promise;
 
@@ -397,7 +395,7 @@ describe('Dialogs Module', () => {
 
       const promise = showClearDataConfirmation(callback);
       const cancelBtn = document.querySelector('.confirm-modal .btn-secondary');
-      expect(cancelBtn).not.toBeNull();
+      expect(cancelBtn).toBeInstanceOf(HTMLElement);
       cancelBtn.click();
       await promise;
 
@@ -462,7 +460,7 @@ describe('Dialogs Module', () => {
       updateLoadingProgress(1, 'entries');
 
       const progress = mockElements.loadingState.querySelector('.loading-progress');
-      expect(progress).not.toBeNull();
+      expect(progress).toBeInstanceOf(HTMLElement);
       expect(progress.className).toBe('loading-progress');
       expect(progress.textContent).toContain('Fetching entries (page 1)');
     });
@@ -494,7 +492,7 @@ describe('Dialogs Module', () => {
     it('should remove progress element', () => {
       updateLoadingProgress(1, 'entries');
       const progressBeforeClear = mockElements.loadingState.querySelector('.loading-progress');
-      expect(progressBeforeClear).not.toBeNull();
+      expect(progressBeforeClear).toBeInstanceOf(HTMLElement);
       expect(progressBeforeClear.className).toBe('loading-progress');
 
       clearLoadingProgress();
@@ -658,7 +656,7 @@ describe('Dialogs Module', () => {
         expect(banner.innerHTML).toContain('API Error');
         expect(banner.innerHTML).toContain('Connection failed');
         const actionBtn = banner.querySelector('.error-action-btn');
-        expect(actionBtn).not.toBeNull();
+        expect(actionBtn).toBeInstanceOf(HTMLElement);
       });
 
       it('should maintain focus context when showing error', () => {
@@ -912,7 +910,7 @@ describe('Dialogs Module', () => {
       });
 
       const btn = mockElements.apiStatusBanner.querySelector('.error-action-btn');
-      expect(btn).not.toBeNull();
+      expect(btn).toBeInstanceOf(HTMLElement);
 
       // Verify addEventListener was called with 'click' and { once: true }
       expect(addEventListenerSpy).toHaveBeenCalledWith(
@@ -936,14 +934,15 @@ describe('Dialogs Module', () => {
       });
 
       const btn = mockElements.apiStatusBanner.querySelector('.error-action-btn');
-      expect(btn).not.toBeNull();
+      expect(btn).toBeInstanceOf(HTMLElement);
 
       // Find the call with 'click' event
       const clickCall = addEventListenerSpy.mock.calls.find(
         call => call[0] === 'click'
       );
 
-      expect(clickCall).toBeDefined();
+      expect(Array.isArray(clickCall)).toBe(true);
+      expect(clickCall[0]).toBe('click');
       expect(clickCall[2]).toEqual({ once: true });
 
       addEventListenerSpy.mockRestore();
@@ -970,7 +969,7 @@ describe('Dialogs Module', () => {
       showSessionExpiringWarning(5, onReauth, onDismiss);
 
       const banner = document.getElementById('sessionWarningBanner');
-      expect(banner).not.toBeNull();
+      expect(banner).toBeInstanceOf(HTMLElement);
       expect(banner.classList.contains('session-warning-banner')).toBe(true);
       expect(banner.getAttribute('role')).toBe('alert');
       expect(banner.getAttribute('aria-live')).toBe('assertive');
@@ -1005,7 +1004,7 @@ describe('Dialogs Module', () => {
       const banner = document.getElementById('sessionWarningBanner');
       const reauthBtn = banner.querySelector('.session-reauth-btn');
 
-      expect(reauthBtn).not.toBeNull();
+      expect(reauthBtn).toBeInstanceOf(HTMLElement);
       reauthBtn.click();
 
       expect(onReauth).toHaveBeenCalled();
@@ -1022,7 +1021,7 @@ describe('Dialogs Module', () => {
       const banner = document.getElementById('sessionWarningBanner');
       const dismissBtn = banner.querySelector('.session-dismiss-btn');
 
-      expect(dismissBtn).not.toBeNull();
+      expect(dismissBtn).toBeInstanceOf(HTMLElement);
       dismissBtn.click();
 
       expect(onDismiss).toHaveBeenCalled();
@@ -1071,7 +1070,7 @@ describe('Dialogs Module', () => {
       showSessionExpiringWarning(5, onReauth, onDismiss);
 
       const banner = document.getElementById('sessionWarningBanner');
-      expect(banner).not.toBeNull();
+      expect(banner).toBeInstanceOf(HTMLElement);
       expect(banner.parentElement).toBe(document.body);
     });
   });
@@ -1115,7 +1114,7 @@ describe('Dialogs Module', () => {
       showSessionExpiredDialog();
 
       const modal = document.getElementById('sessionExpiredModal');
-      expect(modal).not.toBeNull();
+      expect(modal).toBeInstanceOf(HTMLElement);
       expect(modal.classList.contains('modal-overlay')).toBe(true);
       expect(modal.getAttribute('role')).toBe('alertdialog');
       expect(modal.getAttribute('aria-modal')).toBe('true');
@@ -1143,7 +1142,7 @@ describe('Dialogs Module', () => {
       const modal = document.getElementById('sessionExpiredModal');
       const reloadBtn = modal.querySelector('.session-reload-btn');
 
-      expect(reloadBtn).not.toBeNull();
+      expect(reloadBtn).toBeInstanceOf(HTMLElement);
       expect(reloadBtn.textContent).toContain('Reload');
     });
 

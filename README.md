@@ -8,7 +8,46 @@ Manifest URL:
 ![OTREPO demo](docs/media/otrepo.gif)
 
 
-## Quick Start
+## Deploy Your Own (5 minutes)
+
+No backend needed. Fork, change one line, done.
+
+### 1. Fork this repo
+
+Click **Fork** on GitHub. You get your own copy at `https://github.com/YOUR_USERNAME/otrepo`.
+
+### 2. Enable GitHub Pages
+
+Go to **Settings → Pages → Source** and select **GitHub Actions**.
+
+### 3. Update the manifest base URL
+
+Edit `manifest.json` and change `baseUrl` to your fork's GitHub Pages URL:
+
+```json
+{
+  "baseUrl": "https://YOUR_USERNAME.github.io/otrepo"
+}
+```
+
+Commit and push to `main`. The CI pipeline will build, test, and deploy automatically.
+
+### 4. Install in Clockify
+
+1. Go to your Clockify workspace **Settings → Add-ons → Custom Add-ons**
+2. Enter your manifest URL: `https://YOUR_USERNAME.github.io/otrepo/manifest.json`
+3. Click **Install**
+
+That's it. The addon appears in the sidebar for workspace admins.
+
+### Requirements
+
+- Clockify **Standard** plan or higher
+- Workspace **admin** role
+
+---
+
+## Quick Start (Development)
 
 ```bash
 npm ci

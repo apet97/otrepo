@@ -222,6 +222,13 @@ export async function deriveEncryptionKey(
  * Legacy PBKDF2-based key derivation (pre-2026).
  * Retained for decrypting data encrypted with workspaceId-derived keys.
  *
+ * SEC-5: This uses the workspace ID as key material, which is NOT secret
+ * (visible in URLs and API responses). The key derivation provides computational
+ * cost (100K PBKDF2 iterations) but not true secret-based security. New
+ * encryptions use AES-GCM with random Web Crypto keys (see deriveEncryptionKey).
+ * This legacy path is read-only for backward compatibility and will be removed
+ * once all legacy data has aged out or been re-encrypted.
+ *
  * @internal
  */
 export async function deriveLegacyEncryptionKey(

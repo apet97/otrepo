@@ -1310,7 +1310,6 @@ async function fetchWithAuth<T>(
                 // Check if we have retries left and haven't exceeded max total retry time
                 /* Stryker disable all: Rate limit logging - message content and retry math not unit-testable */
                 const elapsedTime = Date.now() - startTime;
-                /* istanbul ignore if -- requires real network delays to trigger timeout condition */
                 if (elapsedTime + waitMs > MAX_TOTAL_RETRY_TIME_MS) {
                     apiLogger.error('Rate limit exceeded, total retry time would exceed limit', {
                         maxTotalRetryTimeMs: MAX_TOTAL_RETRY_TIME_MS,
@@ -1421,7 +1420,6 @@ async function fetchWithAuth<T>(
                 recordFailure(false);
                 apiTimer.end();
                 incrementCounter(MetricNames.API_ERROR_COUNT);
-                /* istanbul ignore next -- defensive: err.status may be undefined for network errors */
                 return { data: null, failed: true, status: err.status || 0 };
             }
             /* Stryker restore all */
@@ -1432,7 +1430,6 @@ async function fetchWithAuth<T>(
                 // API-3: Add jitter to prevent thundering herd on shared failures
                 const backoffTime = Math.pow(2, attempt) * 1000 * (0.5 + Math.random() * 0.5);
                 const elapsedTime = Date.now() - startTime;
-                /* istanbul ignore if -- requires real network delays to trigger timeout condition */
                 if (elapsedTime + backoffTime > MAX_TOTAL_RETRY_TIME_MS) {
                     apiLogger.error('Retry would exceed total retry time limit', {
                         maxTotalRetryTimeMs: MAX_TOTAL_RETRY_TIME_MS,
@@ -1484,7 +1481,6 @@ async function fetchWithAuth<T>(
  * @param options - Fetch options (e.g. signal).
  * @returns Flat list of all time entries for the user.
  */
-/* istanbul ignore next -- defensive: options default is for internal convenience */
 async function fetchUserEntriesPaginated(
     workspaceId: string,
     user: User,
@@ -1494,7 +1490,6 @@ async function fetchUserEntriesPaginated(
 ): Promise<TimeEntry[]> {
     const allEntries: TimeEntry[] = [];
     let page = 1;
-    /* istanbul ignore next -- defensive: maxPages is always set, 0 means unlimited */
     const configuredMaxPages = deps().getConfig().maxPages ?? DEFAULT_MAX_PAGES;
     // Stryker disable next-line ConditionalExpression: Zero check enables unlimited pagination mode
     const effectiveMaxPages = configuredMaxPages === 0
@@ -1595,7 +1590,6 @@ export const Api = {
         // Always request earned amounts for stable rates; cost/profit uses the amounts array.
         // We request 'EARNED' to get the standard billable rate field, while 'amounts' array gives us COST/PROFIT data.
         const amountShown = 'EARNED';
-        /* istanbul ignore next -- defensive: handles various rate value formats from API */
         /* Stryker disable all: Defensive type handling for API data */
         const resolveRateValue = (value: unknown): number => {
             if (value == null) return 0;
@@ -1607,7 +1601,6 @@ export const Api = {
             return 0;
         };
         /* Stryker restore all */
-        /* istanbul ignore next -- defensive: handles null/missing timestamp values */
         /* Stryker disable all: Defensive timestamp normalization */
         const normalizeTimestamp = (value: unknown): string => {
             if (value == null) return '';
@@ -1624,7 +1617,6 @@ export const Api = {
                 /^(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}(?::\d{2})?.*)$/
             );
             /* Stryker restore all */
-            /* istanbul ignore else -- defensive: return original string for unrecognized formats */
             if (compactMatch) {
                 return `${compactMatch[1]}T${compactMatch[2]}`;
             }
@@ -1652,7 +1644,6 @@ export const Api = {
                 return items;
             }
             const shownType = amountShown.toUpperCase();
-            /* istanbul ignore next -- defensive: handles malformed amounts array entries */
             /* Stryker disable all: Defensive optional chaining for malformed API data */
             const shownTotal = items.reduce((total, item) => {
                 const type = String(item?.type || item?.amountType || '').toUpperCase();
@@ -1661,7 +1652,6 @@ export const Api = {
                 return Number.isFinite(value) ? total + value : total;
             }, 0);
             /* Stryker restore all */
-            /* istanbul ignore next -- defensive: adds fallback amount if no matching type found */
             if (shownTotal !== 0) return items;
             return [...items, { type: shownType, value: fallbackAmount }];
         };
@@ -1791,7 +1781,6 @@ export const Api = {
                 const resolvedEarnedRate = resolveRateValue(e.earnedRate);
                 const resolvedCostRate = resolveRateValue(e.costRate);
                 const isBillable = e.billable === true;
-                /* istanbul ignore next -- defensive: handle various hourlyRate object formats */
                 // Stryker disable all: Currency fallback is defensive coding
                 const hourlyRateCurrency =
                     typeof e.hourlyRate === 'object' &&
@@ -1806,7 +1795,6 @@ export const Api = {
                     Number.isFinite(fallbackAmount) ? fallbackAmount : null
                 );
 
-                /* istanbul ignore next -- defensive: handle missing fields from API response */
                 return {
                     id: e._id || e.id || '',
                     description: e.description,
@@ -1869,16 +1857,13 @@ export const Api = {
                 hasMore = false;
             } else {
                 page++;
-                /* istanbul ignore next -- defensive: pagination continuation rarely reaches limit */
                 // Check against configurable max pages limit
                 const configuredMaxPages = deps().getConfig().maxPages ?? DEFAULT_MAX_PAGES;
-                /* istanbul ignore next -- defensive: maxPages === 0 is edge case for unlimited pages */
                 // Stryker disable next-line ConditionalExpression: Zero check enables unlimited pagination mode
                 const effectiveMaxPages = configuredMaxPages === 0
                     ? HARD_MAX_PAGES_LIMIT
                     : Math.min(configuredMaxPages, HARD_MAX_PAGES_LIMIT);
 
-                /* istanbul ignore next -- defensive: safety limit rarely reached in normal operation */
                 if (page > effectiveMaxPages) {
                     console.warn(`Reached page limit (${effectiveMaxPages}), stopping pagination. Total entries fetched: ${allEntries.length}`);
                     deps().setUiPaginationFlag('paginationTruncated');

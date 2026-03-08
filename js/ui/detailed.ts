@@ -169,7 +169,6 @@ export function renderDetailedTable(
     const isProfitMode = showAmounts && amountDisplay === 'profit';
     // SAFE-INNERHTML(detailed-table): All HTML interpolations below must use escapeHtml
     // for API-sourced strings or numeric formatters. Prefer DOM APIs if adding user content.
-    /* istanbul ignore else -- detailedCard always exists when this function is called */
     if (detailedCard) {
         detailedCard.classList.toggle('billable-off', !showBillable);
         detailedCard.classList.toggle('amount-profit', isProfitMode);
@@ -203,9 +202,7 @@ export function renderDetailedTable(
     }
 
     // Pagination Logic
-    /* istanbul ignore next -- defensive: pageSize and page are always set by UI */
     const pageSize = store.ui.detailedPageSize || 50;
-    /* istanbul ignore next -- defensive: pageSize and page are always set by UI */
     const page = store.ui.detailedPage || 1;
     const totalPages = Math.ceil(allEntries.length / pageSize);
     const start = (page - 1) * pageSize;
@@ -224,18 +221,15 @@ export function renderDetailedTable(
                 hour12: false,
                 timeZone: canonicalTimeZone,
             });
-        } catch /* istanbul ignore next -- Date constructor rarely throws */ {
+        } catch {
             return '—';
         }
     };
 
-    /* istanbul ignore next -- UI formatting: isProfitMode determines header note */
     const amountHeaderNote = isProfitMode
         ? '<div class="amount-header-sub">Amt / Cost / Profit</div>'
         : '';
-    /* istanbul ignore next -- UI label: depends on amountDisplay config */
     const detailedRateLabel = amountDisplay === 'cost' ? 'Rate (Cost)' : 'Rate';
-    /* istanbul ignore next -- UI formatting: responsive header labels */
     const headerLabel = (long: string, short?: string): string =>
         short
             ? `<span class="header-label header-label-long">${long}</span><span class="header-label header-label-short">${short}</span>`
@@ -277,7 +271,6 @@ export function renderDetailedTable(
             (e.timeInterval.start || '').split('T')[0];
         const tags: string[] = [];
         const tagKeys = new Set<string>();
-        /* istanbul ignore next -- defensive: prevents duplicate tags in status column */
         const addTag = (key: string, tagHtml: string) => {
             if (tagKeys.has(key)) return;
             tagKeys.add(key);
@@ -337,15 +330,12 @@ export function renderDetailedTable(
         if (showAmounts) {
             // Use precomputed amount breakdowns
             const amountsByType = e.analysis?.amounts || {};
-            /* istanbul ignore next -- UI conditional: profit mode shows stacked amounts */
             const rateCell = isProfitMode
                 ? buildProfitStacks(amountsByType, (amount) => amount.rate || 0, 'right')
                 : formatCurrency(e.analysis?.hourlyRate || 0);
-            /* istanbul ignore next -- UI conditional: profit mode shows stacked amounts */
             const regularCell = isProfitMode
                 ? buildProfitStacks(amountsByType, (amount) => amount.regularAmount || 0, 'right')
                 : formatCurrency(e.analysis?.regularAmount || 0);
-            /* istanbul ignore next -- UI conditional: profit mode shows stacked amounts */
             const otCell = isProfitMode
                 ? buildProfitStacks(
                       amountsByType,
@@ -356,7 +346,6 @@ export function renderDetailedTable(
                 : formatCurrency(
                       (e.analysis?.overtimeAmountBase || 0) + (e.analysis?.tier1Premium || 0)
                   );
-            /* istanbul ignore next -- UI conditional: tier2 column shown when enabled */
             const t2Cell = showTier2
                 ? (isProfitMode
                     ? buildProfitStacks(amountsByType, (amount) => amount.tier2Premium || 0, 'right')
@@ -417,7 +406,6 @@ export function renderDetailedTable(
     }
     container.textContent = '';
     container.appendChild(fragment);
-    /* istanbul ignore else -- detailedCard always exists when this function is called */
     if (detailedCard) {
         ensureDetailedHeaderObserver(detailedCard);
     }

@@ -102,7 +102,7 @@ export function createMockTimeEntries(options: {
             timeInterval: {
                 start: `${dateStr}T09:00:00Z`,
                 end: `${dateStr}T${12 + (i % 4)}:00:00Z`,
-                duration: (3 + (i % 4)) * 3600,
+                duration: `PT${3 + (i % 4)}H`,
             },
             hourlyRate: { amount: 5000, currency: 'USD' },
             earnedRate: 5000,

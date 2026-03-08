@@ -223,7 +223,6 @@ describe('State Module - Store Class', () => {
       const saved = localStorage.getItem(
         `${STORAGE_KEYS.OVERRIDES_PREFIX}workspace_123`
       );
-      expect(saved).not.toBeNull();
       expect(typeof saved).toBe('string');
 
       const parsed = JSON.parse(saved);
@@ -385,9 +384,8 @@ describe('State Module - Store Class', () => {
 
       it('should initialize perDayOverrides when switching to perDay mode', () => {
         store.setOverrideMode('user1', 'perDay');
-        expect(store.overrides.user1.perDayOverrides).not.toBeUndefined();
-        expect(typeof store.overrides.user1.perDayOverrides).toBe('object');
         expect(store.overrides.user1.perDayOverrides).toEqual({});
+        expect(typeof store.overrides.user1.perDayOverrides).toBe('object');
       });
 
       it('should persist mode to localStorage', () => {
@@ -594,7 +592,7 @@ describe('State Module - Store Class', () => {
 
         expect(result).toBe(true);
         expect(typeof store.overrides.user7.perDayOverrides).toBe('object');
-        expect(store.overrides.user7.perDayOverrides['2025-01-15']).not.toBeUndefined();
+        expect(store.overrides.user7.perDayOverrides['2025-01-15']).toEqual({ capacity: 6 });
         expect(store.overrides.user7.perDayOverrides['2025-01-15'].capacity).toBe(6);
       });
     });
@@ -636,7 +634,7 @@ describe('State Module - Store Class', () => {
         const result = store.setWeeklyOverride('newUser', 'FRIDAY', 'capacity', 4);
 
         expect(result).toBe(true);
-        expect(store.overrides.newUser).not.toBeUndefined();
+        expect(typeof store.overrides.newUser).toBe('object');
         expect(store.overrides.newUser.mode).toBe('weekly');
         expect(store.overrides.newUser.weeklyOverrides.FRIDAY.capacity).toBe(4);
       });
@@ -649,7 +647,7 @@ describe('State Module - Store Class', () => {
 
         expect(result).toBe(true);
         expect(typeof store.overrides.userNoWeekly.weeklyOverrides).toBe('object');
-        expect(store.overrides.userNoWeekly.weeklyOverrides.MONDAY).not.toBeUndefined();
+        expect(store.overrides.userNoWeekly.weeklyOverrides.MONDAY).toEqual({ capacity: 6 });
         expect(store.overrides.userNoWeekly.weeklyOverrides.MONDAY.capacity).toBe(6);
       });
 
@@ -1127,7 +1125,6 @@ describe('State Module - Store Class', () => {
 
       await store.setCachedReport(key, entries);
       const cachedReport = await store.getCachedReport(key);
-      expect(cachedReport).not.toBeNull();
       expect(Array.isArray(cachedReport)).toBe(true);
       expect(cachedReport).toHaveLength(1);
 
@@ -1733,7 +1730,7 @@ describe('State Module - Store Class', () => {
       await store.loadHolidayCache('2025-01-01', '2025-01-31');
 
       const userHolidays = store.holidays.get('user1');
-      expect(userHolidays).toBeDefined();
+      expect(userHolidays).toBeInstanceOf(Map);
       expect(userHolidays.get('2025-01-01')).toEqual({ name: 'New Year' });
     });
 
@@ -1746,7 +1743,7 @@ describe('State Module - Store Class', () => {
       await store.loadTimeOffCache('2025-01-01', '2025-01-31');
 
       const userTimeOff = store.timeOff.get('user1');
-      expect(userTimeOff).toBeDefined();
+      expect(userTimeOff).toBeInstanceOf(Map);
       expect(userTimeOff.get('2025-01-15')).toEqual({ isFullDay: true, hours: 0 });
     });
 
@@ -1795,7 +1792,7 @@ describe('State Module - Store Class', () => {
 
       expect(result).toBe(true);
       expect(typeof store.overrides['user_special'].perDayOverrides).toBe('object');
-      expect(store.overrides['user_special'].perDayOverrides['2025-01-15']).not.toBeUndefined();
+      expect(store.overrides['user_special'].perDayOverrides['2025-01-15']).toEqual({ capacity: 5 });
       expect(store.overrides['user_special'].perDayOverrides['2025-01-15'].capacity).toBe(5);
     });
   });
@@ -1887,7 +1884,6 @@ describe('State Module - Store Class', () => {
       store.saveConfig();
 
       const saved = JSON.parse(localStorage.getItem('otplus_config'));
-      expect(saved).not.toBeNull();
       expect(typeof saved).toBe('object');
       expect(saved.config.showBillableBreakdown).toBe(true);
       expect(saved.config.enableTieredOT).toBe(true);
@@ -2259,7 +2255,7 @@ describe('State Module - Store Class', () => {
       });
 
       it('should reject capacity of -0.01 (just below zero)', () => {
-        const result = store.updateOverride('user1', 'capacity', -0.01);
+        store.updateOverride('user1', 'capacity', -0.01);
 
         // Negative values should not be stored
         if (store.overrides['user1']?.capacity !== undefined) {
@@ -2268,7 +2264,7 @@ describe('State Module - Store Class', () => {
       });
 
       it('should reject NaN capacity', () => {
-        const result = store.updateOverride('user1', 'capacity', NaN);
+        store.updateOverride('user1', 'capacity', NaN);
 
         // NaN should not be stored
         if (store.overrides['user1']?.capacity !== undefined) {
@@ -2288,7 +2284,7 @@ describe('State Module - Store Class', () => {
       });
 
       it('should reject non-numeric capacity strings', () => {
-        const result = store.updateOverride('user1', 'capacity', 'eight');
+        store.updateOverride('user1', 'capacity', 'eight');
 
         // String values should not be stored as-is
         if (store.overrides['user1']?.capacity !== undefined) {
@@ -2784,7 +2780,7 @@ describe('Workspace Switching', () => {
 
       // Filter should reset to default (if implemented in setToken)
       // Note: This depends on implementation - documenting expected behavior
-      expect(store.ui.activeDetailedFilter).toBeDefined();
+      expect(typeof store.ui.activeDetailedFilter).toBe('string');
     });
   });
 
@@ -3054,7 +3050,7 @@ describe('LocalStorage Quota Handling', () => {
       store.updatePerDayOverride('user1', '2025-01-15', 'capacity', null);
 
       // The date key should still exist since multiplier remains
-      expect(store.overrides.user1.perDayOverrides['2025-01-15']).toBeDefined();
+      expect(store.overrides.user1.perDayOverrides['2025-01-15']).toEqual({ multiplier: 1.5 });
       expect(store.overrides.user1.perDayOverrides['2025-01-15'].multiplier).toBe(1.5);
     });
   });
@@ -3077,7 +3073,7 @@ describe('LocalStorage Quota Handling', () => {
       expect(store.overrides.user1.mode).toBe('perDay');
       // Each date should have the global values copied
       dates.forEach(date => {
-        expect(store.overrides.user1.perDayOverrides[date]).toBeDefined();
+        expect(store.overrides.user1.perDayOverrides[date]).toEqual({ capacity: 7, multiplier: 1.75 });
         expect(store.overrides.user1.perDayOverrides[date].capacity).toBe(7);
         expect(store.overrides.user1.perDayOverrides[date].multiplier).toBe(1.75);
       });
@@ -3098,7 +3094,7 @@ describe('LocalStorage Quota Handling', () => {
       store.copyGlobalToPerDay('user1', ['2025-01-15']);
 
       // Should create perDayOverrides and populate it
-      expect(store.overrides.user1.perDayOverrides).toBeDefined();
+      expect(store.overrides.user1.perDayOverrides).toEqual({ '2025-01-15': { capacity: 6 } });
       expect(store.overrides.user1.perDayOverrides['2025-01-15'].capacity).toBe(6);
     });
   });
@@ -3124,7 +3120,7 @@ describe('LocalStorage Quota Handling', () => {
       // All weekdays should have the global values
       const weekdays = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
       weekdays.forEach(day => {
-        expect(store.overrides.user1.weeklyOverrides[day]).toBeDefined();
+        expect(store.overrides.user1.weeklyOverrides[day]).toEqual({ capacity: 8, multiplier: 2.0, tier2Threshold: 10, tier2Multiplier: 2.5 });
         expect(store.overrides.user1.weeklyOverrides[day].capacity).toBe(8);
         expect(store.overrides.user1.weeklyOverrides[day].multiplier).toBe(2.0);
         expect(store.overrides.user1.weeklyOverrides[day].tier2Threshold).toBe(10);
@@ -3145,7 +3141,7 @@ describe('LocalStorage Quota Handling', () => {
 
       store.copyGlobalToWeekly('user1');
 
-      expect(store.overrides.user1.weeklyOverrides).toBeDefined();
+      expect(typeof store.overrides.user1.weeklyOverrides).toBe('object');
       expect(store.overrides.user1.weeklyOverrides.MONDAY.capacity).toBe(6);
     });
   });
