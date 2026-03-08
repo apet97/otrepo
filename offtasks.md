@@ -427,7 +427,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### UX-1: No sidebar width targeting in CSS
+### [RESOLVED] UX-1: No sidebar width targeting in CSS
 
 - **Severity:** High
 - **File:** `css/styles.css`
@@ -437,7 +437,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### UX-2: ~400 lines of duplicate CSS rules
+### [RESOLVED] UX-2: ~400 lines of duplicate CSS rules
 
 - **Severity:** High
 - **File:** `css/styles.css`
@@ -644,7 +644,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### CQ-8: Duplicate CSS is structural debt from apparent file concatenation
+### [RESOLVED] CQ-8: Duplicate CSS is structural debt from apparent file concatenation
 
 - **Severity:** Info
 - **File:** `css/styles.css`
