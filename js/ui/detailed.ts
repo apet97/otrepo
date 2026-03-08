@@ -407,8 +407,16 @@ export function renderDetailedTable(
       </div>`;
     }
 
+    // PERF-1: Build new content in a DocumentFragment to batch DOM operations.
     // SAFE-INNERHTML(detailed-table): html is built from escaped strings/formatters only.
-    container.innerHTML = html;
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    const fragment = document.createDocumentFragment();
+    while (tempDiv.firstChild) {
+        fragment.appendChild(tempDiv.firstChild);
+    }
+    container.textContent = '';
+    container.appendChild(fragment);
     /* istanbul ignore else -- detailedCard always exists when this function is called */
     if (detailedCard) {
         ensureDetailedHeaderObserver(detailedCard);

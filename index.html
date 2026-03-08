@@ -143,6 +143,10 @@
     <div id="apiStatusBanner" data-testid="api-status-banner" class="card hidden api-status-banner" role="alert" aria-live="polite" aria-atomic="true">
     </div>
 
+    <!-- UX-6: Throttle/Status Banner (separate from error banner so both can show simultaneously) -->
+    <div id="throttleStatusBanner" data-testid="throttle-status-banner" class="card hidden api-status-banner" role="status" aria-live="polite">
+    </div>
+
     <!-- Pagination Warning Banner -->
     <div id="paginationWarningBanner" data-testid="pagination-warning-banner" class="card hidden pagination-warning-banner" role="alert" aria-live="polite">
       <strong>Results may be incomplete.</strong> The data exceeded the pagination limit. Narrow your date range for complete results.

@@ -11,19 +11,64 @@ const MIN_LOADING_MS = 120;
 let loadingStartedAt = 0;
 let loadingHideTimeout: ReturnType<typeof setTimeout> | null = null;
 
-/**
- * Sandbox-safe confirm() wrapper.
- * In sandboxed iframes without 'allow-modals', window.confirm() is silently ignored
- * and returns undefined. This helper detects that and returns a sensible default.
- * @param message - The confirmation message to display.
- * @param defaultValue - Value to return if confirm() is blocked by sandbox (default: true).
- * @returns The user's choice, or defaultValue if sandboxed.
- */
-function safeConfirm(message: string, defaultValue: boolean = true): boolean {
-    // In sandboxed iframes without allow-modals, confirm() is ignored and returns undefined
-    const result = window.confirm(message);
-    // If undefined (sandbox blocked), use default; otherwise use actual result
-    return result === undefined ? defaultValue : result;
+// UX-7: Styled confirmation modal to replace window.confirm(),
+// which is silently blocked in sandboxed iframes without 'allow-modals'.
+function showStyledConfirm(message: string, defaultValue: boolean = true): Promise<boolean> {
+    return new Promise((resolve) => {
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.tabIndex = -1;
+        overlay.setAttribute('role', 'alertdialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'confirmDialogTitle');
+
+        const content = document.createElement('div');
+        content.className = 'modal-content confirm-modal';
+
+        const title = document.createElement('h2');
+        title.id = 'confirmDialogTitle';
+        title.textContent = 'Confirm';
+
+        const body = document.createElement('p');
+        body.style.whiteSpace = 'pre-wrap';
+        body.textContent = message;
+
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn btn-secondary';
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Cancel';
+
+        const okBtn = document.createElement('button');
+        okBtn.className = 'btn btn-primary';
+        okBtn.type = 'button';
+        okBtn.textContent = 'OK';
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(okBtn);
+        content.appendChild(title);
+        content.appendChild(body);
+        content.appendChild(actions);
+        overlay.appendChild(content);
+
+        const cleanup = (result: boolean) => {
+            overlay.remove();
+            resolve(result);
+        };
+
+        okBtn.addEventListener('click', () => cleanup(true), { once: true });
+        cancelBtn.addEventListener('click', () => cleanup(false), { once: true });
+        overlay.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Escape') cleanup(defaultValue === true ? false : defaultValue);
+        });
+
+        document.body.appendChild(overlay);
+        setupModalFocusTrap(overlay);
+        okBtn.focus();
+    });
 }
 
 /**
@@ -378,9 +423,9 @@ function setupModalFocusTrap(modal: HTMLElement): void {
  * Shows a confirmation dialog for clearing all data.
  * @param onConfirm - Callback when user confirms.
  */
-export function showClearDataConfirmation(onConfirm: () => void): void {
+export async function showClearDataConfirmation(onConfirm: () => void): Promise<void> {
     // Default false: don't clear data without explicit user consent
-    const confirmed = safeConfirm(
+    const confirmed = await showStyledConfirm(
         'Are you sure you want to clear all stored data? This will remove:\n\n' +
             '• All saved configuration settings\n' +
             '• User override settings\n' +
@@ -400,7 +445,7 @@ export function showClearDataConfirmation(onConfirm: () => void): void {
  * @param userCount - Number of workspace users.
  * @returns Promise that resolves to true if user confirms, false if cancelled.
  */
-export function showLargeDateRangeWarning(days: number, userCount?: number): Promise<boolean> {
+export async function showLargeDateRangeWarning(days: number, userCount?: number): Promise<boolean> {
     const isVeryLarge = days > 730; // More than 2 years
     const userDays = userCount ? days * userCount : 0;
     const userDaysNote = userCount && userCount > 50
@@ -414,8 +459,8 @@ export function showLargeDateRangeWarning(days: number, userCount?: number): Pro
           'Large date ranges may take longer to process.\n\n' +
           'Continue?';
 
-    // Default true: proceed with report generation if sandbox blocks confirm
-    return Promise.resolve(safeConfirm(message, true));
+    // Default true: proceed with report generation
+    return showStyledConfirm(message, true);
 }
 
 /**
@@ -462,31 +507,22 @@ export function clearLoadingProgress(): void {
 
 /**
  * Renders the throttle status banner when rate limiting is detected.
+ * UX-6: Uses separate throttleStatusBanner element so throttle and error messages
+ * can both be visible simultaneously.
  * @param retryCount - Number of 429 retries encountered.
  */
 export function renderThrottleStatus(retryCount: number): void {
-    const Elements = getElements();
-    const banner = Elements.apiStatusBanner;
+    const banner = document.getElementById('throttleStatusBanner');
     if (!banner) return;
 
     // Only show throttle warning if 3+ retries occurred
     if (retryCount < 3) {
+        banner.classList.add('hidden');
+        banner.textContent = '';
         return;
     }
 
-    // Don't replace existing error content, append throttle info
-    const existingContent = banner.textContent || '';
-    if (existingContent.includes('Rate limiting')) {
-        return; // Already showing throttle warning
-    }
-
-    const throttleMessage = `\u26A0\uFE0F Rate limiting detected (${retryCount} retries). Report generation may be slower than usual.`;
-
-    if (existingContent && !existingContent.includes('Rate limiting')) {
-        banner.textContent = existingContent + ' | ' + throttleMessage;
-    } else {
-        banner.textContent = throttleMessage;
-    }
+    banner.textContent = `\u26A0\uFE0F Rate limiting detected (${retryCount} retries). Report generation may be slower than usual.`;
     banner.classList.remove('hidden');
 }
 
@@ -500,7 +536,7 @@ export type CacheAction = 'use' | 'refresh';
  * @param cacheAgeSeconds - Age of the cache in seconds.
  * @returns Promise resolving to 'use' to use cache, 'refresh' to fetch fresh data.
  */
-export function showCachePrompt(cacheAgeSeconds: number): Promise<CacheAction> {
+export async function showCachePrompt(cacheAgeSeconds: number): Promise<CacheAction> {
     const ageMinutes = Math.round(cacheAgeSeconds / 60);
     const ageText = ageMinutes < 1 ? 'less than a minute' : `${ageMinutes} minute${ageMinutes !== 1 ? 's' : ''}`;
 
@@ -509,7 +545,7 @@ export function showCachePrompt(cacheAgeSeconds: number): Promise<CacheAction> {
         'Use cached data for faster loading, or refresh to fetch the latest?\n\n' +
         'Click OK to use cache, Cancel to refresh.';
 
-    // Default true: use cache for faster loading if sandbox blocks confirm
-    const useCached = safeConfirm(message, true);
-    return Promise.resolve(useCached ? 'use' : 'refresh');
+    // Default true: use cache for faster loading
+    const useCached = await showStyledConfirm(message, true);
+    return useCached ? 'use' : 'refresh';
 }

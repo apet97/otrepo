@@ -46,6 +46,7 @@ describe('Dialogs Module', () => {
         </div>
         <div id="emptyState" class="hidden"></div>
         <div id="apiStatusBanner" class="hidden"></div>
+        <div id="throttleStatusBanner" class="hidden"></div>
         <div id="paginationWarningBanner" class="hidden"></div>
       </div>
     `;
@@ -378,81 +379,81 @@ describe('Dialogs Module', () => {
   });
 
   describe('showClearDataConfirmation', () => {
-    it('should call callback when user confirms', () => {
-      window.confirm = jest.fn(() => true);
+    it('should call callback when user confirms', async () => {
       const callback = jest.fn();
 
-      showClearDataConfirmation(callback);
+      const promise = showClearDataConfirmation(callback);
+      // Modal appended to DOM — click OK
+      const okBtn = document.querySelector('.confirm-modal .btn-primary');
+      expect(okBtn).not.toBeNull();
+      okBtn.click();
+      await promise;
 
-      expect(window.confirm).toHaveBeenCalled();
       expect(callback).toHaveBeenCalled();
     });
 
-    it('should not call callback when user cancels', () => {
-      window.confirm = jest.fn(() => false);
+    it('should not call callback when user cancels', async () => {
       const callback = jest.fn();
 
-      showClearDataConfirmation(callback);
+      const promise = showClearDataConfirmation(callback);
+      const cancelBtn = document.querySelector('.confirm-modal .btn-secondary');
+      expect(cancelBtn).not.toBeNull();
+      cancelBtn.click();
+      await promise;
 
-      expect(window.confirm).toHaveBeenCalled();
       expect(callback).not.toHaveBeenCalled();
     });
 
-    it('should show appropriate confirmation message', () => {
-      window.confirm = jest.fn(() => false);
+    it('should show appropriate confirmation message', async () => {
+      const promise = showClearDataConfirmation(() => {});
+      const modalText = document.querySelector('.confirm-modal p')?.textContent || '';
 
-      showClearDataConfirmation(() => {});
+      expect(modalText).toContain('clear all stored data');
+      expect(modalText).toContain('cannot be undone');
 
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('clear all stored data')
-      );
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('cannot be undone')
-      );
+      // Clean up modal
+      document.querySelector('.confirm-modal .btn-secondary')?.click();
+      await promise;
     });
   });
 
   describe('showLargeDateRangeWarning', () => {
     it('should return true when user confirms', async () => {
-      window.confirm = jest.fn(() => true);
+      const promise = showLargeDateRangeWarning(100);
+      document.querySelector('.confirm-modal .btn-primary').click();
 
-      const result = await showLargeDateRangeWarning(100);
-
+      const result = await promise;
       expect(result).toBe(true);
     });
 
     it('should return false when user cancels', async () => {
-      window.confirm = jest.fn(() => false);
+      const promise = showLargeDateRangeWarning(100);
+      document.querySelector('.confirm-modal .btn-secondary').click();
 
-      const result = await showLargeDateRangeWarning(100);
-
+      const result = await promise;
       expect(result).toBe(false);
     });
 
     it('should show standard message for moderate ranges', async () => {
-      window.confirm = jest.fn(() => true);
+      const promise = showLargeDateRangeWarning(400);
+      const modalText = document.querySelector('.confirm-modal p')?.textContent || '';
 
-      await showLargeDateRangeWarning(400);
+      expect(modalText).toContain('400-day range');
+      expect(modalText).not.toContain('over 2 years');
 
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('400-day range')
-      );
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.not.stringContaining('over 2 years')
-      );
+      document.querySelector('.confirm-modal .btn-primary').click();
+      await promise;
     });
 
     it('should show stronger warning for >730 days', async () => {
-      window.confirm = jest.fn(() => true);
+      const promise = showLargeDateRangeWarning(800);
+      const modalText = document.querySelector('.confirm-modal p')?.textContent || '';
 
-      await showLargeDateRangeWarning(800);
+      expect(modalText).toContain('800-day range');
+      expect(modalText).toContain('over 2 years');
 
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('800-day range')
-      );
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('over 2 years')
-      );
+      document.querySelector('.confirm-modal .btn-primary').click();
+      await promise;
     });
   });
 
@@ -524,96 +525,96 @@ describe('Dialogs Module', () => {
     it('should show warning for 3+ retries', () => {
       renderThrottleStatus(3);
 
-      const banner = mockElements.apiStatusBanner;
+      // UX-6: Throttle uses separate throttleStatusBanner element
+      const banner = document.getElementById('throttleStatusBanner');
       expect(banner.classList.contains('hidden')).toBe(false);
       expect(banner.textContent).toContain('Rate limiting detected');
       expect(banner.textContent).toContain('3 retries');
     });
 
-    it('should append to existing banner content', () => {
+    it('should not conflict with error banner content', () => {
+      // UX-6: Error and throttle banners are now independent
       mockElements.apiStatusBanner.textContent = 'Profiles: 2 failed';
+      mockElements.apiStatusBanner.classList.remove('hidden');
 
       renderThrottleStatus(5);
 
-      const banner = mockElements.apiStatusBanner;
-      expect(banner.textContent).toContain('Profiles: 2 failed');
-      expect(banner.textContent).toContain('Rate limiting');
+      // Error banner still shows its own content
+      expect(mockElements.apiStatusBanner.textContent).toContain('Profiles: 2 failed');
+      // Throttle banner shows its own content separately
+      const throttleBanner = document.getElementById('throttleStatusBanner');
+      expect(throttleBanner.textContent).toContain('Rate limiting');
     });
 
-    it('should not duplicate throttle warning', () => {
+    it('should update message on subsequent calls', () => {
       renderThrottleStatus(3);
-      const firstContent = mockElements.apiStatusBanner.textContent;
-
       renderThrottleStatus(5);
 
-      expect(mockElements.apiStatusBanner.textContent).toBe(firstContent);
+      const banner = document.getElementById('throttleStatusBanner');
+      expect(banner.textContent).toContain('5 retries');
     });
 
-    it('should handle null banner gracefully', () => {
-      setElements({ ...mockElements, apiStatusBanner: null });
+    it('should handle missing throttle banner gracefully', () => {
+      document.getElementById('throttleStatusBanner').remove();
 
       expect(() => renderThrottleStatus(5)).not.toThrow();
     });
 
     it('should set message when banner is empty', () => {
-      mockElements.apiStatusBanner.textContent = '';
-
       renderThrottleStatus(4);
 
-      expect(mockElements.apiStatusBanner.textContent).toContain('Rate limiting');
-      expect(mockElements.apiStatusBanner.textContent).not.toContain('|');
+      const banner = document.getElementById('throttleStatusBanner');
+      expect(banner.textContent).toContain('Rate limiting');
     });
   });
 
   describe('showCachePrompt', () => {
     it('should return "use" when user confirms', async () => {
-      window.confirm = jest.fn(() => true);
+      const promise = showCachePrompt(120);
+      document.querySelector('.confirm-modal .btn-primary').click();
 
-      const result = await showCachePrompt(120);
-
+      const result = await promise;
       expect(result).toBe('use');
     });
 
     it('should return "refresh" when user cancels', async () => {
-      window.confirm = jest.fn(() => false);
+      const promise = showCachePrompt(120);
+      document.querySelector('.confirm-modal .btn-secondary').click();
 
-      const result = await showCachePrompt(120);
-
+      const result = await promise;
       expect(result).toBe('refresh');
     });
 
     it('should format age in minutes', async () => {
-      window.confirm = jest.fn(() => true);
+      const promise = showCachePrompt(180); // 3 minutes
+      const modalText = document.querySelector('.confirm-modal p')?.textContent || '';
 
-      await showCachePrompt(180); // 3 minutes
+      expect(modalText).toContain('3 minutes old');
 
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('3 minutes old')
-      );
+      document.querySelector('.confirm-modal .btn-primary').click();
+      await promise;
     });
 
     it('should show "less than a minute" for <30 seconds', async () => {
-      window.confirm = jest.fn(() => true);
-
       // Math.round(29/60) = 0, which is < 1, so shows "less than a minute"
-      await showCachePrompt(29);
+      const promise = showCachePrompt(29);
+      const modalText = document.querySelector('.confirm-modal p')?.textContent || '';
 
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('less than a minute')
-      );
+      expect(modalText).toContain('less than a minute');
+
+      document.querySelector('.confirm-modal .btn-primary').click();
+      await promise;
     });
 
     it('should show "1 minute" without "s" for exactly 1 minute', async () => {
-      window.confirm = jest.fn(() => true);
+      const promise = showCachePrompt(60);
+      const modalText = document.querySelector('.confirm-modal p')?.textContent || '';
 
-      await showCachePrompt(60);
+      expect(modalText).toContain('1 minute old');
+      expect(modalText).not.toContain('1 minutes');
 
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('1 minute old')
-      );
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.not.stringContaining('1 minutes')
-      );
+      document.querySelector('.confirm-modal .btn-primary').click();
+      await promise;
     });
   });
 
@@ -687,24 +688,26 @@ describe('Dialogs Module', () => {
     });
 
     describe('Confirmation dialog accessibility', () => {
-      it('should include clear action description in clear data confirmation', () => {
-        window.confirm = jest.fn(() => false);
+      it('should include clear action description in clear data confirmation', async () => {
+        const promise = showClearDataConfirmation(() => {});
+        const modalText = document.querySelector('.confirm-modal p')?.textContent || '';
 
-        showClearDataConfirmation(() => {});
-
-        const confirmMessage = window.confirm.mock.calls[0][0];
         // Message should clearly describe the action
-        expect(confirmMessage).toMatch(/clear|delete/i);
-        expect(confirmMessage).toMatch(/cannot be undone|irreversible/i);
+        expect(modalText).toMatch(/clear|delete/i);
+        expect(modalText).toMatch(/cannot be undone|irreversible/i);
+
+        document.querySelector('.confirm-modal .btn-secondary').click();
+        await promise;
       });
 
       it('should include day count in date range warning', async () => {
-        window.confirm = jest.fn(() => true);
+        const promise = showLargeDateRangeWarning(365);
+        const modalText = document.querySelector('.confirm-modal p')?.textContent || '';
 
-        await showLargeDateRangeWarning(365);
+        expect(modalText).toContain('365');
 
-        const confirmMessage = window.confirm.mock.calls[0][0];
-        expect(confirmMessage).toContain('365');
+        document.querySelector('.confirm-modal .btn-primary').click();
+        await promise;
       });
     });
   });

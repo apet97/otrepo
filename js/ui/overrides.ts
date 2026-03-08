@@ -52,6 +52,13 @@ export function renderOverridesPage(): void {
     const container = Elements.overridesUserList;
     if (!container) return;
 
+    // UX-5: Preserve scroll position and focused element across re-renders
+    const prevScrollTop = container.scrollTop;
+    const activeEl = document.activeElement as HTMLElement | null;
+    const activeUserId = activeEl?.closest?.('[data-userid]')?.getAttribute('data-userid') || null;
+    const activeField = activeEl?.getAttribute?.('data-field') || null;
+    const activeTagName = activeEl?.tagName || null;
+
     if (!store.users.length) {
         container.innerHTML = '<div class="card"><p class="muted">No users loaded. Generate a report first to see users.</p></div>';
         return;
@@ -200,6 +207,16 @@ export function renderOverridesPage(): void {
         } else {
             paginationContainer.innerHTML = '';
         }
+    }
+
+    // UX-5: Restore scroll position and focus after re-render
+    container.scrollTop = prevScrollTop;
+    if (activeUserId && activeField) {
+        const selector = activeTagName === 'SELECT'
+            ? `select[data-userid="${activeUserId}"]`
+            : `input[data-userid="${activeUserId}"][data-field="${activeField}"]`;
+        const restoredEl = container.querySelector<HTMLElement>(selector);
+        if (restoredEl) restoredEl.focus();
     }
 }
 

@@ -24,6 +24,7 @@ describe('UI innerHTML safety markers', () => {
     const marker = 'SAFE-INNERHTML(detailed-table): html is built from escaped strings/formatters only.';
     const markerIndex = source.indexOf(marker);
     expect(markerIndex).toBeGreaterThan(-1);
-    expect(source.indexOf('container.innerHTML', markerIndex)).toBeGreaterThan(markerIndex);
+    // PERF-1: innerHTML is now assigned to a temp div (DocumentFragment pattern)
+    expect(source.indexOf('tempDiv.innerHTML', markerIndex)).toBeGreaterThan(markerIndex);
   });
 });

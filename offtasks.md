@@ -307,7 +307,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### PERF-1: Full innerHTML replacement on detailed table pagination
+### [RESOLVED] PERF-1: Full innerHTML replacement on detailed table pagination
 
 - **Severity:** High
 - **File:** `js/ui/detailed.ts`
@@ -448,7 +448,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### UX-3: Document keydown listener added but never removed
+### [RESOLVED] UX-3: Document keydown listener added but never removed
 
 - **Severity:** Medium
 - **File:** `js/ui/index.ts`
@@ -458,7 +458,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### UX-4: Filter chips use aria-checked without role="radio"
+### [RESOLVED] UX-4: Filter chips use aria-checked without role="radio"
 
 - **Severity:** Medium
 - **File:** `js/ui/detailed.ts` or `js/ui/shared.ts`
@@ -468,7 +468,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### UX-5: Overrides page does full re-render on every change
+### [RESOLVED] UX-5: Overrides page does full re-render on every change
 
 - **Severity:** Medium
 - **File:** `js/ui/overrides.ts`
@@ -478,7 +478,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### UX-6: Error banner and throttle status share same DOM element
+### [RESOLVED] UX-6: Error banner and throttle status share same DOM element
 
 - **Severity:** Medium
 - **File:** `js/ui/dialogs.ts`
@@ -488,7 +488,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### UX-7: Three dialogs use native window.confirm()
+### [RESOLVED] UX-7: Three dialogs use native window.confirm()
 
 - **Severity:** Low
 - **File:** `js/main.ts`

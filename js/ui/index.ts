@@ -170,15 +170,35 @@ export function bindEvents(callbacks: UICallbacks): () => void {
         overridesSearchContainer.addEventListener('input', overridesSearchHandler);
     }
 
-    // Close popover on Escape key
-    document.addEventListener('keydown', (e) => {
+    // UX-3: Close popover on Escape key — named function for cleanup
+    const escapeKeyHandler = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && detailedContainer) {
             const openPopover = detailedContainer.querySelector('.status-info-popover:not(.hidden)');
             if (openPopover) {
                 openPopover.classList.add('hidden');
             }
         }
-    });
+    };
+    document.addEventListener('keydown', escapeKeyHandler);
+
+    // UX-4: Arrow key navigation for filter chips (radiogroup pattern)
+    const filterChipContainer = document.getElementById('detailedFilters');
+    const filterChipKeyHandler = (e: KeyboardEvent) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        const chips = Array.from(filterChipContainer!.querySelectorAll<HTMLElement>('.chip'));
+        if (chips.length === 0) return;
+        const currentIndex = chips.indexOf(e.target as HTMLElement);
+        if (currentIndex === -1) return;
+        e.preventDefault();
+        const nextIndex = e.key === 'ArrowRight'
+            ? (currentIndex + 1) % chips.length
+            : (currentIndex - 1 + chips.length) % chips.length;
+        chips[nextIndex].focus();
+        chips[nextIndex].click();
+    };
+    if (filterChipContainer) {
+        filterChipContainer.addEventListener('keydown', filterChipKeyHandler);
+    }
 
     // Generate button
     const generateBtn = document.getElementById('generateBtn');
@@ -328,8 +348,12 @@ export function bindEvents(callbacks: UICallbacks): () => void {
         Elements.overridesUserList.addEventListener('click', overridesClickHandler);
     }
 
-    // Return cleanup function that removes all event listeners
+    // Return cleanup function that removes all event listeners (UX-3: includes keydown)
     return () => {
+        document.removeEventListener('keydown', escapeKeyHandler);
+        if (filterChipContainer) {
+            filterChipContainer.removeEventListener('keydown', filterChipKeyHandler);
+        }
         if (overridesPaginationContainer) {
             overridesPaginationContainer.removeEventListener('click', overridesPaginationHandler);
         }
