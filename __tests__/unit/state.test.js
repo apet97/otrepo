@@ -1694,6 +1694,78 @@ describe('State Module - Store Class', () => {
     });
   });
 
+  describe('Encrypted Cache Round-Trips (SEC-1, SEC-2)', () => {
+    let encryptionKey;
+
+    beforeEach(async () => {
+      // Generate a real AES-GCM key for testing encrypted paths
+      if (typeof globalThis.crypto?.subtle?.generateKey === 'function') {
+        encryptionKey = await crypto.subtle.generateKey(
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt', 'decrypt']
+        );
+        store.encryptionKey = encryptionKey;
+      }
+    });
+
+    afterEach(() => {
+      store.encryptionKey = null;
+    });
+
+    it('should encrypt and decrypt profiles cache round-trip', async () => {
+      if (!encryptionKey) return; // Skip if crypto not available
+      store.profiles.set('user1', { workCapacityHours: 8, workingDays: [1,2,3,4,5] });
+
+      await store.saveProfilesCache();
+      store.profiles = new Map();
+      await store.loadProfilesCache();
+
+      expect(store.profiles.get('user1')).toEqual({ workCapacityHours: 8, workingDays: [1,2,3,4,5] });
+    });
+
+    it('should encrypt and decrypt holiday cache round-trip', async () => {
+      if (!encryptionKey) return;
+      store.holidays.set('user1', new Map([['2025-01-01', { name: 'New Year' }]]));
+
+      await store.saveHolidayCache('2025-01-01', '2025-01-31');
+      store.holidays = new Map();
+      await store.loadHolidayCache('2025-01-01', '2025-01-31');
+
+      const userHolidays = store.holidays.get('user1');
+      expect(userHolidays).toBeDefined();
+      expect(userHolidays.get('2025-01-01')).toEqual({ name: 'New Year' });
+    });
+
+    it('should encrypt and decrypt time-off cache round-trip', async () => {
+      if (!encryptionKey) return;
+      store.timeOff.set('user1', new Map([['2025-01-15', { isFullDay: true, hours: 0 }]]));
+
+      await store.saveTimeOffCache('2025-01-01', '2025-01-31');
+      store.timeOff = new Map();
+      await store.loadTimeOffCache('2025-01-01', '2025-01-31');
+
+      const userTimeOff = store.timeOff.get('user1');
+      expect(userTimeOff).toBeDefined();
+      expect(userTimeOff.get('2025-01-15')).toEqual({ isFullDay: true, hours: 0 });
+    });
+
+    it('should fall back to plaintext read for legacy unencrypted data', async () => {
+      if (!encryptionKey) return;
+      // Save without encryption (simulate legacy data)
+      store.encryptionKey = null;
+      store.profiles.set('user1', { workCapacityHours: 6 });
+      await store.saveProfilesCache();
+
+      // Load with encryption enabled (should fall back to plaintext)
+      store.encryptionKey = encryptionKey;
+      store.profiles = new Map();
+      await store.loadProfilesCache();
+
+      expect(store.profiles.get('user1')).toEqual({ workCapacityHours: 6 });
+    });
+  });
+
   describe('Clear Fetch Cache', () => {
     it('should clear holidays and timeOff maps but keep profiles', () => {
       store.setToken('mock_token', { workspaceId: 'workspace_123' });
