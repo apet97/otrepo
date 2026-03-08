@@ -706,7 +706,9 @@ class Store {
         this.claims = claims;
 
         // Load cached profile data for this workspace (if present)
-        this.loadProfilesCache();
+        // Note: async but fire-and-forget — profiles will be loaded by the time
+        // report generation starts; encryption key may not be ready yet at this point
+        this.loadProfilesCache().catch(() => { /* best-effort */ });
 
         // Load overrides for the new workspace (or empty if none saved)
         this._loadOverrides();
@@ -801,11 +803,20 @@ class Store {
         return Date.now() - cache.timestamp <= DATA_CACHE_TTL;
     }
 
-    loadProfilesCache(): void {
+    async loadProfilesCache(): Promise<void> {
         const cacheKey = this._getProfilesCacheKey();
         if (!cacheKey) return;
-        const saved = safeGetItem(cacheKey);
+
+        // SEC-2: Try encrypted first, fall back to plaintext (legacy)
+        let saved: string | null = null;
+        if (this.encryptionKey && isEncryptionSupported()) {
+            saved = await retrieveEncrypted(cacheKey, this.encryptionKey);
+        }
+        if (!saved) {
+            saved = safeGetItem(cacheKey);
+        }
         if (!saved) return;
+
         const cache = safeJSONParse<MapCache<UserProfile> | null>(saved, null);
         if (!cache || !this._isCacheFresh(cache)) return;
         const map = new Map<string, UserProfile>(cache.entries || []);
@@ -814,7 +825,7 @@ class Store {
         }
     }
 
-    saveProfilesCache(): void {
+    async saveProfilesCache(): Promise<void> {
         const cacheKey = this._getProfilesCacheKey();
         if (!cacheKey) return;
         const cache: MapCache<UserProfile> = {
@@ -822,14 +833,30 @@ class Store {
             timestamp: Date.now(),
             entries: Array.from(this.profiles.entries()),
         };
-        safeSetItem(cacheKey, JSON.stringify(cache));
+        const data = JSON.stringify(cache);
+
+        // SEC-2: Encrypt if possible, skip plaintext storage
+        if (this.encryptionKey && isEncryptionSupported()) {
+            await storeEncrypted(cacheKey, data, this.encryptionKey);
+        } else {
+            safeSetItem(cacheKey, data);
+        }
     }
 
-    loadHolidayCache(start: string, end: string): void {
+    async loadHolidayCache(start: string, end: string): Promise<void> {
         const cacheKey = this._getRangeCacheKey(STORAGE_KEYS.HOLIDAYS_PREFIX, start, end);
         if (!cacheKey) return;
-        const saved = safeGetItem(cacheKey);
+
+        // SEC-2: Try encrypted first, fall back to plaintext (legacy)
+        let saved: string | null = null;
+        if (this.encryptionKey && isEncryptionSupported()) {
+            saved = await retrieveEncrypted(cacheKey, this.encryptionKey);
+        }
+        if (!saved) {
+            saved = safeGetItem(cacheKey);
+        }
         if (!saved) return;
+
         const cache = safeJSONParse<RangeMapCache<Holiday> | null>(saved, null);
         if (!cache || !this._isCacheFresh(cache)) return;
         if (cache.range?.start !== start || cache.range?.end !== end) return;
@@ -842,7 +869,7 @@ class Store {
         }
     }
 
-    saveHolidayCache(start: string, end: string): void {
+    async saveHolidayCache(start: string, end: string): Promise<void> {
         const cacheKey = this._getRangeCacheKey(STORAGE_KEYS.HOLIDAYS_PREFIX, start, end);
         if (!cacheKey) return;
         const cache: RangeMapCache<Holiday> = {
@@ -854,14 +881,30 @@ class Store {
                 Array.from(map.entries()),
             ]),
         };
-        safeSetItem(cacheKey, JSON.stringify(cache));
+        const data = JSON.stringify(cache);
+
+        // SEC-2: Encrypt if possible, skip plaintext storage
+        if (this.encryptionKey && isEncryptionSupported()) {
+            await storeEncrypted(cacheKey, data, this.encryptionKey);
+        } else {
+            safeSetItem(cacheKey, data);
+        }
     }
 
-    loadTimeOffCache(start: string, end: string): void {
+    async loadTimeOffCache(start: string, end: string): Promise<void> {
         const cacheKey = this._getRangeCacheKey(STORAGE_KEYS.TIMEOFF_PREFIX, start, end);
         if (!cacheKey) return;
-        const saved = safeGetItem(cacheKey);
+
+        // SEC-2: Try encrypted first, fall back to plaintext (legacy)
+        let saved: string | null = null;
+        if (this.encryptionKey && isEncryptionSupported()) {
+            saved = await retrieveEncrypted(cacheKey, this.encryptionKey);
+        }
+        if (!saved) {
+            saved = safeGetItem(cacheKey);
+        }
         if (!saved) return;
+
         const cache = safeJSONParse<RangeMapCache<TimeOffInfo> | null>(saved, null);
         if (!cache || !this._isCacheFresh(cache)) return;
         if (cache.range?.start !== start || cache.range?.end !== end) return;
@@ -874,7 +917,7 @@ class Store {
         }
     }
 
-    saveTimeOffCache(start: string, end: string): void {
+    async saveTimeOffCache(start: string, end: string): Promise<void> {
         const cacheKey = this._getRangeCacheKey(STORAGE_KEYS.TIMEOFF_PREFIX, start, end);
         if (!cacheKey) return;
         const cache: RangeMapCache<TimeOffInfo> = {
@@ -886,7 +929,14 @@ class Store {
                 Array.from(map.entries()),
             ]),
         };
-        safeSetItem(cacheKey, JSON.stringify(cache));
+        const data = JSON.stringify(cache);
+
+        // SEC-2: Encrypt if possible, skip plaintext storage
+        if (this.encryptionKey && isEncryptionSupported()) {
+            await storeEncrypted(cacheKey, data, this.encryptionKey);
+        } else {
+            safeSetItem(cacheKey, data);
+        }
     }
 
     /**
@@ -1641,14 +1691,26 @@ class Store {
             // IndexedDB unavailable; fall through to sessionStorage
         }
 
-        // Fallback: sessionStorage (legacy path)
+        // Fallback: sessionStorage (SEC-1: decrypt if encrypted)
         try {
             const cached = safeSessionGetItem(STORAGE_KEYS.REPORT_CACHE);
             if (!cached) return null;
 
-            const cache = safeJSONParse<ReportCache | null>(cached, null);
-            if (!cache) return null;
+            const parsed = safeJSONParse<EncryptedData | ReportCache | null>(cached, null);
+            if (!parsed) return null;
 
+            // Check if data is encrypted (has ct/iv/v fields from EncryptedData)
+            if ('ct' in parsed && 'iv' in parsed && 'v' in parsed && this.encryptionKey) {
+                const decrypted = await decryptData(parsed as EncryptedData, this.encryptionKey);
+                const cache = safeJSONParse<ReportCache | null>(decrypted, null);
+                if (!cache) return null;
+                if (cache.key !== key) return null;
+                if (Date.now() - cache.timestamp > REPORT_CACHE_TTL) return null;
+                return cache.entries;
+            }
+
+            // Legacy unencrypted path
+            const cache = parsed as ReportCache;
             if (cache.key !== key) return null;
             if (Date.now() - cache.timestamp > REPORT_CACHE_TTL) return null;
 
@@ -1727,11 +1789,19 @@ class Store {
             stateLogger.warn('IndexedDB cache write failed, falling back to sessionStorage:', e);
         }
 
-        // Fallback: sessionStorage
+        // Fallback: sessionStorage (SEC-1: encrypt if possible)
         try {
+            let dataToStore: string;
+            if (this.encryptionKey && isEncryptionSupported()) {
+                const serialized = JSON.stringify(cache);
+                const encrypted = await encryptData(serialized, this.encryptionKey);
+                dataToStore = JSON.stringify(encrypted);
+            } else {
+                dataToStore = JSON.stringify(cache);
+            }
             const stored = safeSessionSetItem(
                 STORAGE_KEYS.REPORT_CACHE,
-                JSON.stringify(cache)
+                dataToStore
             );
             if (!stored) {
                 stateLogger.warn('Failed to cache report data:', new Error('sessionStorage unavailable'));

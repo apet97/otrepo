@@ -1504,7 +1504,11 @@ export const Api = {
      * @param workspaceId - The Clockify workspace ID.
      * @returns List of users.
      */
-    async fetchUsers(workspaceId: string, signal?: AbortSignal): Promise<User[]> {
+    async fetchUsers(workspaceId: string, options?: FetchOptions | AbortSignal): Promise<User[]> {
+        // Accept either FetchOptions or bare AbortSignal for backward compatibility
+        const fetchOpts: FetchOptions = options instanceof AbortSignal
+            ? { signal: options }
+            : (options ?? {});
         const allUsers: User[] = [];
         let page = 1;
         const pageSize = PAGE_SIZE;
@@ -1513,7 +1517,7 @@ export const Api = {
             // API-1: Propagate abort signal so cancellation stops pagination
             const { data } = await fetchWithAuth<User[]>(
                 `${store.claims?.backendUrl}${BASE_API}/${workspaceId}/users?page=${page}&page-size=${pageSize}`,
-                signal ? { signal } : {}
+                fetchOpts
             );
             const users = Array.isArray(data) ? data : [];
             allUsers.push(...users);

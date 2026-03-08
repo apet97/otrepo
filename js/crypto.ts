@@ -199,6 +199,10 @@ export async function deriveEncryptionKey(
 
         const persisted = await persistKey(workspaceId, key);
         if (!persisted) {
+            // SEC-6: Warn when falling back to globalThis for key storage.
+            // Keys stored on globalThis are accessible to any same-origin script
+            // and are lost on page reload (non-persistent).
+            logger.warn('IndexedDB unavailable for key storage; using in-memory fallback (non-persistent)');
             fallbackKeyStore.set(workspaceId, key);
         }
 

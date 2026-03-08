@@ -588,6 +588,15 @@ function extractRates(entry: TimeEntry, durationHours?: number): RatesConfig {
  *    - Fallback when no other source exists
  *    - Default: 8 hours (standard workday)
  *
+ * ## Override Mode-Gating (BL-1)
+ * Overrides use a mode-gated precedence cascade: per-day > weekly > global > profile > default.
+ * Only overrides matching the user's current override mode are considered:
+ * - If override mode is 'perDay', only per-day overrides are checked (weekly overrides are ignored)
+ * - If override mode is 'weekly', only weekly overrides are checked (per-day overrides are ignored)
+ * - If override mode is 'global' (or unset), only global user overrides are checked
+ * This applies identically to all four override resolution functions:
+ * getEffectiveCapacity, getEffectiveMultiplier, getEffectiveTier2Threshold, getEffectiveTier2Multiplier.
+ *
  * ## IMPORTANT: This Returns BASE Capacity
  * This function returns the **base capacity** before adjustments. The caller must
  * apply additional adjustments for:

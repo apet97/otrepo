@@ -145,17 +145,21 @@ describe('Negative Path Testing', () => {
         headers: { get: () => null }
       });
 
-      const promise = Api.fetchEntries(
+      // Use real timers to avoid AbortSignal.timeout being advanced by fake timers
+      jest.useRealTimers();
+
+      const result = await Api.fetchEntries(
         MOCK_WORKSPACE_ID,
         users,
         '2025-01-01T00:00:00Z',
         '2025-01-31T23:59:59Z'
       );
-      await jest.runAllTimersAsync();
-      const result = await promise;
 
       // Should return partial results from first page
       expect(result.length).toBe(500);
+
+      // Restore fake timers for afterEach consistency
+      jest.useFakeTimers({ advanceTimers: true });
     });
 
     it('should handle network error on specific page', async () => {
@@ -167,17 +171,21 @@ describe('Negative Path Testing', () => {
       // Second page network error
       fetch.mockRejectedValueOnce(new Error('Network error'));
 
-      const promise = Api.fetchEntries(
+      // Use real timers to avoid AbortSignal.timeout being advanced by fake timers
+      jest.useRealTimers();
+
+      const result = await Api.fetchEntries(
         MOCK_WORKSPACE_ID,
         users,
         '2025-01-01T00:00:00Z',
         '2025-01-31T23:59:59Z'
       );
-      await jest.runAllTimersAsync();
-      const result = await promise;
 
       // Should return first page results
       expect(result.length).toBe(500);
+
+      // Restore fake timers for afterEach consistency
+      jest.useFakeTimers({ advanceTimers: true });
     });
 
     it('should handle 429 rate limit during pagination', async () => {

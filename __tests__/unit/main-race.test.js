@@ -309,11 +309,12 @@ describe('Main handleGenerateReport concurrency', () => {
 
     // Start first request
     const firstPromise = handleGenerateReport();
-    await Promise.resolve(); await Promise.resolve();
+    // Flush microtasks (extra flushes needed for async load* cache methods)
+    for (let i = 0; i < 10; i++) await Promise.resolve();
 
     // Start second request (aborts first)
     const secondPromise = handleGenerateReport();
-    await Promise.resolve(); await Promise.resolve();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
 
     // Resolve second request's entries and profiles first (simulates faster response)
     const secondProfileData = new Map([

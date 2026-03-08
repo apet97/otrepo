@@ -731,8 +731,9 @@ describe('Error Recovery Sequences', () => {
     store.apiStatus = { profilesFailed: 0, holidaysFailed: 0, timeOffFailed: 0 };
     store.resetThrottleStatus();
 
-    const { resetRateLimiter } = await import('../../js/api.js');
+    const { resetRateLimiter, resetCircuitBreaker } = await import('../../js/api.js');
     resetRateLimiter();
+    resetCircuitBreaker();
     await jest.advanceTimersByTimeAsync(1000);
   });
 
@@ -1052,6 +1053,9 @@ describe('Error Recovery Sequences', () => {
     });
 
     it('should allow retry after network timeout', async () => {
+      // Use real timers to avoid AbortSignal.timeout being fired by fake timers
+      jest.useRealTimers();
+
       let attemptCount = 0;
 
       fetch.mockImplementation(async () => {
@@ -1074,6 +1078,9 @@ describe('Error Recovery Sequences', () => {
       // Second attempt - succeeds
       const result2 = await Api.fetchUsers('workspace_123');
       expect(result2).toEqual([{ id: 'user1', name: 'Alice' }]);
+
+      // Restore fake timers
+      jest.useFakeTimers({ advanceTimers: true });
     });
 
     it('should handle AbortError gracefully', async () => {
@@ -1108,6 +1115,9 @@ describe('Error Recovery Sequences', () => {
      */
 
     it('should recover from profile errors and continue to holidays', async () => {
+      // Use real timers to avoid AbortSignal.timeout being fired by fake timers
+      jest.useRealTimers();
+
       let phase = 'profiles';
 
       fetch.mockImplementation(async (url) => {
@@ -1130,21 +1140,24 @@ describe('Error Recovery Sequences', () => {
 
       const users = [{ id: 'user1', name: 'Alice' }];
 
-      await jest.advanceTimersByTimeAsync(1000);
-
       // Fetch profiles (will fail)
       await Api.fetchAllProfiles('workspace_123', users, {});
       expect(store.apiStatus.profilesFailed).toBe(1);
 
       // Fetch holidays (should succeed despite profile failure)
       await Api.fetchAllHolidays('workspace_123', users, '2025-01-01', '2025-01-31', {});
-      await jest.runAllTimersAsync();
 
       expect(phase).toBe('holidays');
       expect(store.apiStatus.holidaysFailed).toBe(0);
+
+      // Restore fake timers
+      jest.useFakeTimers({ advanceTimers: true });
     });
 
     it('should track total failures across retry sequence', async () => {
+      // Use real timers to avoid AbortSignal.timeout being fired by fake timers
+      jest.useRealTimers();
+
       let attemptsByUser = new Map();
 
       fetch.mockImplementation(async (url) => {
@@ -1180,12 +1193,13 @@ describe('Error Recovery Sequences', () => {
 
       const users = [{ id: 'user1', name: 'Alice' }];
 
-      await jest.advanceTimersByTimeAsync(1000);
       await Api.fetchAllProfiles('workspace_123', users, {});
-      await jest.runAllTimersAsync();
 
       // Should have tracked failures during the sequence
       expect(attemptsByUser.get('user1')).toBeGreaterThanOrEqual(1);
+
+      // Restore fake timers
+      jest.useFakeTimers({ advanceTimers: true });
     });
   });
 });
