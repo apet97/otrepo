@@ -33,14 +33,13 @@ import { runCalculation } from './worker-manager.js';
 import { bindConfigEvents } from './config-manager.js';
 import { handleGenerateReport } from './report-orchestrator.js';
 import type { TokenClaims, ApiStatus } from './types.js';
+// Side-effect import: registers window.__OTPLUS_HEALTH_CHECK__
+import './health-check.js';
 
 // Re-export for backward compatibility with tests
 export { handleGenerateReport } from './report-orchestrator.js';
 export { getHealthStatus } from './health-check.js';
 export type { HealthCheckResult } from './health-check.js';
-
-// Side-effect import: registers window.__OTPLUS_HEALTH_CHECK__
-import './health-check.js';
 
 const mainLogger = createLogger('Main');
 

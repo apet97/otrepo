@@ -508,7 +508,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### TEST-1: 13 source modules excluded from Stryker mutation testing
+### [RESOLVED] TEST-1: 13 source modules excluded from Stryker mutation testing
 
 - **Severity:** Medium
 - **File:** `stryker.config.json`
@@ -534,7 +534,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### TEST-2: 162 weak assertions (toBeDefined/toBeTruthy/toBeFalsy)
+### [RESOLVED] TEST-2: 162 weak assertions (toBeDefined/toBeTruthy/toBeFalsy)
 
 - **Severity:** Medium
 - **File:** Multiple test files
@@ -544,7 +544,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### TEST-3: E2E mock duration format uses numeric instead of ISO string
+### [RESOLVED] TEST-3: E2E mock duration format uses numeric instead of ISO string
 
 - **Severity:** Low
 - **File:** E2E test fixtures
@@ -564,7 +564,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### TEST-5: No overrides E2E workflow test
+### [RESOLVED] TEST-5: No overrides E2E workflow test
 
 - **Severity:** Info
 - **File:** Missing test
@@ -614,7 +614,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### CQ-5: 78 istanbul ignore directives across 15 source files
+### [RESOLVED] CQ-5: 78 istanbul ignore directives across 15 source files
 
 - **Severity:** Low
 - **File:** Multiple (api.ts: 18, ui/detailed.ts: 16, calc.ts: 11, state.ts: 10)
