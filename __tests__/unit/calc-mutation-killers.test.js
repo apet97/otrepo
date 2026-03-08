@@ -3136,10 +3136,11 @@ describe('Calculation Module - Mutation Test Coverage', () => {
         billable: false
       }];
 
-      calculateAnalysis(entries, mockStore, dateRange);
+      const results = calculateAnalysis(entries, mockStore, dateRange);
+      const entry = results[0].days.get('2025-01-15').entries[0];
 
-      expect(entries[0].analysis.isBreak).toBe(true);
-      expect(entries[0].analysis.tags).toContain('BREAK');
+      expect(entry.analysis.isBreak).toBe(true);
+      expect(entry.analysis.tags).toContain('BREAK');
     });
 
     it('should set isBreak false for WORK entries', () => {
@@ -3157,10 +3158,11 @@ describe('Calculation Module - Mutation Test Coverage', () => {
         billable: true
       }];
 
-      calculateAnalysis(entries, mockStore, dateRange);
+      const results = calculateAnalysis(entries, mockStore, dateRange);
+      const entry = results[0].days.get('2025-01-15').entries[0];
 
-      expect(entries[0].analysis.isBreak).toBe(false);
-      expect(entries[0].analysis.tags).not.toContain('BREAK');
+      expect(entry.analysis.isBreak).toBe(false);
+      expect(entry.analysis.tags).not.toContain('BREAK');
     });
 
     it('should add HOLIDAY tag when day is holiday', () => {
@@ -3181,9 +3183,10 @@ describe('Calculation Module - Mutation Test Coverage', () => {
         billable: true
       }];
 
-      calculateAnalysis(entries, mockStore, dateRange);
+      const results = calculateAnalysis(entries, mockStore, dateRange);
+      const entry = results[0].days.get('2025-01-15').entries[0];
 
-      expect(entries[0].analysis.tags).toContain('HOLIDAY');
+      expect(entry.analysis.tags).toContain('HOLIDAY');
     });
 
     it('should add OFF-DAY tag when day is non-working', () => {
@@ -3206,9 +3209,10 @@ describe('Calculation Module - Mutation Test Coverage', () => {
         billable: true
       }];
 
-      calculateAnalysis(entries, mockStore, dateRange);
+      const results = calculateAnalysis(entries, mockStore, dateRange);
+      const entry = results[0].days.get('2025-01-15').entries[0];
 
-      expect(entries[0].analysis.tags).toContain('OFF-DAY');
+      expect(entry.analysis.tags).toContain('OFF-DAY');
     });
 
     it('should add TIME-OFF tag when day has time-off', () => {
@@ -3229,9 +3233,10 @@ describe('Calculation Module - Mutation Test Coverage', () => {
         billable: true
       }];
 
-      calculateAnalysis(entries, mockStore, dateRange);
+      const results = calculateAnalysis(entries, mockStore, dateRange);
+      const entry = results[0].days.get('2025-01-15').entries[0];
 
-      expect(entries[0].analysis.tags).toContain('TIME-OFF');
+      expect(entry.analysis.tags).toContain('TIME-OFF');
     });
 
     it('should initialize tags as empty array', () => {
@@ -3254,11 +3259,12 @@ describe('Calculation Module - Mutation Test Coverage', () => {
         billable: true
       }];
 
-      calculateAnalysis(entries, mockStore, dateRange);
+      const results = calculateAnalysis(entries, mockStore, dateRange);
+      const entry = results[0].days.get('2025-01-15').entries[0];
 
-      expect(entries[0].analysis.tags).toBeDefined();
-      expect(Array.isArray(entries[0].analysis.tags)).toBe(true);
-      expect(entries[0].analysis.tags.length).toBe(0);
+      expect(entry.analysis.tags).toBeDefined();
+      expect(Array.isArray(entry.analysis.tags)).toBe(true);
+      expect(entry.analysis.tags.length).toBe(0);
     });
   });
 
