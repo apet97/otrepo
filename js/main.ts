@@ -897,9 +897,7 @@ export async function init(): Promise<void> {
  * @throws Does not throw; errors are caught and displayed to user
  */
 export async function loadInitialData(): Promise<void> {
-    // Initialize DOM elements that will be referenced throughout the app
-    // This includes the report table containers, config controls, event listener hooks, etc.
-    UI.initializeElements();
+    // DOM elements already initialized in init() — no need to re-query (PERF-3)
 
     // Show "Loading..." spinner while we fetch initial data
     UI.renderLoading(true);
@@ -1722,8 +1720,8 @@ export function bindConfigEvents(): void {
     document.getElementById('datePresetLastMonth')?.addEventListener('click', () => {
         const now = new Date();
         // Date.UTC(year, month, 0) gives the last day of the previous month
-        const start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
-        const end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0));
+        const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+        const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
         setDateRange(start, end);
         queueAutoGenerate();
     });
@@ -1731,9 +1729,9 @@ export function bindConfigEvents(): void {
     // "This Month" - First day to last day of current calendar month
     document.getElementById('datePresetThisMonth')?.addEventListener('click', () => {
         const now = new Date();
-        const start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+        const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
         // Date.UTC(year, month+1, 0) gives the last day of current month
-        const end = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0));
+        const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
         setDateRange(start, end);
         queueAutoGenerate();
     });
@@ -2606,10 +2604,12 @@ async function runCalculationAsync(
             analysis = calculateAnalysis(entries, store, dateRange);
         }
 
-        calcTimer.end();
+        // COR-8: Check calculationId immediately after await, BEFORE timer end and state writes,
+        // to prevent a stale result from overwriting a fresh one.
         if (calculationId !== currentCalculationId) {
             return;
         }
+        calcTimer.end();
         incrementCounter(MetricNames.CALC_ENTRY_COUNT, entries.length);
         incrementCounter(MetricNames.CALC_USER_COUNT, analysis.length);
 

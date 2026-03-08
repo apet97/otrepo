@@ -86,7 +86,7 @@ const sortedEntries = [...weekEntries].sort((a, b) => {
 
 ---
 
-### COR-4: Worker pool protocol mismatch with calc.worker
+### [RESOLVED] COR-4: Worker pool protocol mismatch with calc.worker
 
 - **Severity:** High
 - **File:** `js/worker-pool.ts` / `js/calc.worker.ts`
@@ -147,7 +147,7 @@ clearAllData(): void {
 
 ---
 
-### COR-7: Date preset buttons mix local and UTC time methods
+### [RESOLVED] COR-7: Date preset buttons mix local and UTC time methods
 
 - **Severity:** Medium
 - **File:** `js/main.ts`
@@ -158,7 +158,7 @@ clearAllData(): void {
 
 ---
 
-### COR-8: Race condition between async worker completion and calculationId check
+### [RESOLVED] COR-8: Race condition between async worker completion and calculationId check
 
 - **Severity:** Medium
 - **File:** `js/main.ts`
@@ -328,7 +328,7 @@ if (calculationId !== currentCalculationId) {
 
 ---
 
-### PERF-3: UI.initializeElements() called twice during init
+### [RESOLVED] PERF-3: UI.initializeElements() called twice during init
 
 - **Severity:** Medium
 - **File:** `js/main.ts`
@@ -417,7 +417,7 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### API-6: Per-request timeout fires on wrong AbortController
+### [RESOLVED] API-6: Per-request timeout fires on wrong AbortController
 
 - **Severity:** Low
 - **File:** `js/main.ts`
