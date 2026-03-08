@@ -574,13 +574,13 @@ async fetchUsers(workspaceId: string): Promise<User[]> {
 
 ---
 
-### CQ-1: God module main.ts at 2666 lines
+### CQ-1: God module main.ts at 2666 lines [RESOLVED]
 
 - **Severity:** High
 - **File:** `js/main.ts`
 - **Issue:** `main.ts` is 2666 lines acting as orchestrator, config manager, UI event binder, session timeout handler, health check provider, worker pool manager, date preset calculator, and cache prompt coordinator. `bindConfigEvents()` is ~490 lines, `handleGenerateReport()` is ~415 lines.
 - **Impact:** High cognitive load, difficult to test in isolation, any change risks unintended side effects. 7 module-scoped mutable `let` variables create hidden coupling.
-- **Fix:** Extract into focused modules: `config-manager.ts`, `report-orchestrator.ts`, `date-presets.ts`, `worker-manager.ts`. Keep `main.ts` as thin entry point.
+- **Fix:** Extracted into 5 focused modules: `config-manager.ts`, `report-orchestrator.ts`, `date-presets.ts`, `worker-manager.ts`, `health-check.ts`. Main.ts reduced from 2666 to 640 lines (345 code lines).
 
 ---
 
