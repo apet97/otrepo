@@ -68,12 +68,12 @@ js/ui/*.ts              # UI rendering and interactions
 - Treat Playwright runner-level errors (including non-test errors) as failures that require triage.
 - If only micro-benchmark tests fail in `__tests__/performance/*.test.js`, run one targeted repro and one full `npm test` rerun before treating as regression.
 
-## Current Baseline (2026-03-08, post-audit-remediation)
+## Current Baseline (2026-03-11, post-codebase-review)
 
-- `npm test`: 93 suites / 3259 tests passing
+- `npm test`: 93 suites / 3271 tests passing
 - `npm run test:e2e`: 236/237 passing (1 transient Firefox flake, passes on repro)
 - `npm run typecheck`: clean
-- `npm run lint`: 0 errors, 10 warnings
+- `npm run lint`: 0 errors, 2 warnings (complexity in init/buildRowsForUsers)
 - Coverage: 83.28% stmts / 78.27% branches / 81.87% funcs / 83.85% lines (all >78%)
 
 ## Known Test Flakes
@@ -138,13 +138,28 @@ Addressed 25 of 28 findings from 1500-user scale audit. See `RALPHTODO.md` Secti
 - Task 7: Test improvements — TEST-1/2/3/5, CQ-5 (stryker config, 58 weak assertions fixed, E2E overrides test, 28 istanbul ignores removed)
 - Task 8: Final verification and documentation
 
+### Codebase Review Remediation (2026-03-11) — 10 items from CODEBASE_REVIEW_TODO.md
+
+All 10 items from codebase review addressed:
+- Fix: Worker cache invalidation via overridesVersion/configVersion counters
+- Fix: Debounce override recalculation (250ms) to prevent keystroke churn
+- Fix: Test script CLI conflict (--maxWorkers=1 → --runInBand)
+- Refactor: bindEvents() split into 4 focused sub-binders + shared toggleCardCollapse
+- Refactor: getHealthStatus() split into per-subsystem probe functions
+- Refactor: Export pipeline uses for...of, precomputes per-user/per-day values
+- Refactor: Shared buildPaginationControls() using DOM APIs (no innerHTML)
+- Cleanup: All non-null assertions removed (crypto, worker-pool, ui/index)
+- Cleanup: Unused eslint-disable directive removed
+- Infra: esbuild metafile output for production bundle analysis
+- Lint: 10 → 2 warnings (only pre-existing complexity)
+
 ## Architecture Notes
 
 - `js/main.ts` — 640 lines (345 code). JWT parsing, theme, session timeout, init. Delegates to extracted modules.
 - `js/config-manager.ts` — Config control event binding, `bindConfigEvents(handleGenerateReport)`.
 - `js/report-orchestrator.ts` — `handleGenerateReport()`, abort handling, report timeout.
-- `js/worker-manager.ts` — `runCalculation()`, worker pool dispatch.
-- `js/health-check.ts` — `getHealthStatus()`, window global exposure.
+- `js/worker-manager.ts` — `runCalculation()`, worker pool dispatch. Cache uses `overridesVersion`/`configVersion` counters (not reference equality).
+- `js/health-check.ts` — `getHealthStatus()` aggregates per-subsystem probes, window global exposure.
 - `js/date-presets.ts` — Pure date range preset calculation functions.
 - `js/api.ts` — Decoupled from store via `ApiDependencies` interface + `initApi(deps)`. Fallback to store-backed defaults.
 - `js/streaming.ts` — Contains `processInChunks`, `splitIntoBatches`, `ChunkedProcessor` etc. `splitIntoBatches` is used in api.ts batch loops.
