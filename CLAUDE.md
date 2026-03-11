@@ -68,12 +68,13 @@ js/ui/*.ts              # UI rendering and interactions
 - Treat Playwright runner-level errors (including non-test errors) as failures that require triage.
 - If only micro-benchmark tests fail in `__tests__/performance/*.test.js`, run one targeted repro and one full `npm test` rerun before treating as regression.
 
-## Current Baseline (2026-03-11, post-codebase-review)
+## Current Baseline (2026-03-11, post-codebase-review-final)
 
 - `npm test`: 93 suites / 3271 tests passing
 - `npm run test:e2e`: 236/237 passing (1 transient Firefox flake, passes on repro)
 - `npm run typecheck`: clean
-- `npm run lint`: 0 errors, 2 warnings (complexity in init/buildRowsForUsers)
+- `npm run lint`: 0 errors, 0 warnings
+- Production bundle: 378KB (down from 559KB after Sentry tree-shaking)
 - Coverage: 83.28% stmts / 78.27% branches / 81.87% funcs / 83.85% lines (all >78%)
 
 ## Known Test Flakes
@@ -145,13 +146,16 @@ All 10 items from codebase review addressed:
 - Fix: Debounce override recalculation (250ms) to prevent keystroke churn
 - Fix: Test script CLI conflict (--maxWorkers=1 → --runInBand)
 - Refactor: bindEvents() split into 4 focused sub-binders + shared toggleCardCollapse
+- Refactor: init() decomposed into 5 focused helpers (showInitError, extractAndScrubToken, parseAndValidateToken, initSubsystems, applyTokenClaims)
+- Refactor: buildRowsForUsers decomposed (DayContext, formatEntryRow, makePlaceholderEntry)
 - Refactor: getHealthStatus() split into per-subsystem probe functions
 - Refactor: Export pipeline uses for...of, precomputes per-user/per-day values
 - Refactor: Shared buildPaginationControls() using DOM APIs (no innerHTML)
 - Cleanup: All non-null assertions removed (crypto, worker-pool, ui/index)
 - Cleanup: Unused eslint-disable directive removed
 - Infra: esbuild metafile output for production bundle analysis
-- Lint: 10 → 2 warnings (only pre-existing complexity)
+- Bundle: Sentry externals (@sentry-internal/replay,feedback,replay-canvas) → 559KB→378KB (32% reduction)
+- Lint: 10 → 0 warnings
 
 ## Architecture Notes
 
