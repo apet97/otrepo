@@ -42,7 +42,7 @@ function toggleCardCollapse(header: Element): void {
     header.setAttribute('aria-expanded', String(isExpanded));
     const toggleIcon = header.querySelector('.toggle-icon');
     if (toggleIcon) {
-        toggleIcon.innerHTML = isExpanded ? '&#9660;' : '&#9654;';
+        toggleIcon.textContent = isExpanded ? '\u25BC' : '\u25B6';
     }
 }
 

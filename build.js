@@ -85,6 +85,14 @@ async function build() {
         target: ['es2020'],
         sourcemap: isProduction ? 'external' : 'linked',
         minify: isProduction,
+        // Exclude Sentry sub-packages we don't use (replay, feedback, replay-canvas).
+        // These are re-exported by @sentry/browser's barrel but our code only uses
+        // core APIs (init, captureException, withScope, etc.) via a SentryLike interface.
+        external: [
+            '@sentry-internal/replay',
+            '@sentry-internal/replay-canvas',
+            '@sentry-internal/feedback',
+        ],
         define: {
             'process.env.VERSION': JSON.stringify(VERSION),
             'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),

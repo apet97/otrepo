@@ -285,63 +285,65 @@ export function isAllowedOrigin(currentOrigin: string): boolean {
     });
 }
 
-export async function init(): Promise<void> {
-    // ========================================================================
-    // CORS ORIGIN VALIDATION
-    // ========================================================================
-    // Validate that the addon is loaded from an allowed origin to prevent
-    // unauthorized embedding. This protects against clickjacking and ensures
-    // the addon only runs within the Clockify context.
-    // ========================================================================
-    const currentOrigin = window.location.origin;
-    const isAllowedOriginResult = isAllowedOrigin(currentOrigin);
-
-    if (!isAllowedOriginResult) {
-        console.error('CORS: Unauthorized origin', currentOrigin);
-        // Don't expose details in production
-        const message = typeof process !== 'undefined' && process.env.NODE_ENV === 'production'
-            ? 'This addon can only be accessed through Clockify.'
-            : `Unauthorized origin: ${currentOrigin}`;
-
-        // Try to show error in UI if possible
-        const emptyState = document.getElementById('emptyState');
-        if (emptyState) {
-            emptyState.textContent = message;
-            emptyState.classList.remove('hidden');
-        }
-        // Signal initialization complete (with error) for E2E tests
-        document.body.dataset.appReady = 'true';
-        return;
+/** Shows an initialization error in the empty state element and marks app as ready. */
+function showInitError(message: string): void {
+    const emptyState = document.getElementById('emptyState');
+    if (emptyState) {
+        emptyState.textContent = message;
+        emptyState.classList.remove('hidden');
     }
+    document.body.dataset.appReady = 'true';
+}
 
-    // Initialize error reporting (Sentry) early for crash capture during initialization
-    // This must happen before any other async operations to catch initialization errors
+/** Extracts the auth token from URL params and scrubs it from the address bar. */
+function extractAndScrubToken(): string | null {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('auth_token');
+    if (token && typeof history !== 'undefined' && typeof history.replaceState === 'function') {
+        params.delete('auth_token');
+        const nextSearch = params.toString();
+        const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+        history.replaceState({}, document.title, nextUrl);
+    }
+    return token;
+}
+
+/** Decodes JWT, validates required claims, and returns the payload. Throws on invalid tokens. */
+function parseAndValidateToken(token: string): TokenClaims {
+    const tokenParts = token.split('.');
+    if (tokenParts.length !== 3) {
+        throw new Error('Invalid token format');
+    }
+    const payload = JSON.parse(base64urlDecode(tokenParts[1])) as TokenClaims;
+    if (!payload || !payload.workspaceId) {
+        throw new Error('Invalid token payload: missing workspaceId');
+    }
+    if (!payload.backendUrl || !isAllowedClockifyUrl(payload.backendUrl)) {
+        throw new Error('Invalid token payload: untrusted backendUrl');
+    }
+    if (payload.reportsUrl && !isAllowedClockifyUrl(payload.reportsUrl)) {
+        throw new Error('Invalid token payload: untrusted reportsUrl');
+    }
+    return payload;
+}
+
+/** Initializes error/CSP reporting, API module, UI elements, and encryption listener. */
+function initSubsystems(): void {
     initErrorReporting({
         dsn: SENTRY_DSN,
         environment: typeof process !== 'undefined' && process.env.NODE_ENV === 'production' ? 'production' : 'development',
         release: `otplus@${typeof process !== 'undefined' && process.env.VERSION ? process.env.VERSION : '0.0.0'}`,
         sampleRate: 1.0,
     }).catch((error) => {
-        // Log for diagnostics but don't break app - error reporting is optional
-        store.diagnostics = {
-            ...store.diagnostics,
-            sentryInitFailed: true,
-        };
-        mainLogger.warn('Error reporting initialization failed', {
-            error: error?.message || error,
-        });
+        store.diagnostics = { ...store.diagnostics, sentryInitFailed: true };
+        mainLogger.warn('Error reporting initialization failed', { error: error?.message || error });
     });
 
-    // Initialize CSP violation reporter for enterprise security monitoring
-    // - Console logging: Only in development (disabled in production to reduce noise)
-    // - Sentry reporting: Always enabled for security alerting and compliance
-    // Rate limiting (10/minute) prevents report flooding from potential attacks
     initCSPReporter({
         reportToConsole: typeof process !== 'undefined' && process.env.NODE_ENV !== 'production',
-        reportToSentry: true, // Enterprise: always report CSP violations for security monitoring
+        reportToSentry: true,
     });
 
-    // Initialize API module with store-backed dependencies (CQ-3 decoupling)
     initApi({
         getToken: () => store.token,
         getClaims: () => store.claims,
@@ -355,8 +357,6 @@ export async function init(): Promise<void> {
         incrementThrottleRetry: () => store.incrementThrottleRetry(),
     });
 
-    // Initialize DOM element references early so UI functions (like renderLoading) can work
-    // even in error paths before loadInitialData() is reached
     UI.initializeElements();
 
     if (!encryptionErrorListenerBound && typeof window !== 'undefined') {
@@ -371,114 +371,65 @@ export async function init(): Promise<void> {
             });
         });
     }
+}
 
-    // Extract JWT token from URL query parameter.
-    // Clockify provides this when embedding OTPLUS as an addon in an iframe.
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('auth_token');
-    if (token && typeof history !== 'undefined' && typeof history.replaceState === 'function') {
-        params.delete('auth_token');
-        const nextSearch = params.toString();
-        const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
-        history.replaceState({}, document.title, nextUrl);
+/** Applies token claims: theme, rate limiter reset, state, encryption, session, timezone, dates. */
+async function applyTokenClaims(token: string, payload: TokenClaims): Promise<void> {
+    if (payload.theme === 'DARK') {
+        document.body.classList.add('cl-theme-dark');
     }
 
-    // Validate that token exists before attempting to decode
+    if (store.claims && store.claims.workspaceId !== payload.workspaceId) {
+        resetRateLimiter();
+    }
+
+    store.setToken(token, payload);
+
+    if (store.config.encryptStorage) {
+        try {
+            await store.initEncryption();
+            await store.loadOverridesEncrypted();
+        } catch (error) {
+            console.warn('Encryption initialization failed', error);
+        }
+    }
+
+    initSessionTimeout(payload);
+    setCanonicalTimeZone(resolveCanonicalTimeZone(payload));
+    setDefaultDates();
+}
+
+export async function init(): Promise<void> {
+    // Validate origin
+    if (!isAllowedOrigin(window.location.origin)) {
+        console.error('CORS: Unauthorized origin', window.location.origin);
+        const message = typeof process !== 'undefined' && process.env.NODE_ENV === 'production'
+            ? 'This addon can only be accessed through Clockify.'
+            : `Unauthorized origin: ${window.location.origin}`;
+        showInitError(message);
+        return;
+    }
+
+    initSubsystems();
+
+    const token = extractAndScrubToken();
     if (!token) {
         console.error('No auth token');
-        reportError(new Error('No auth token provided'), {
-            module: 'main',
-            operation: 'init',
-            level: 'warning',
-        });
+        reportError(new Error('No auth token provided'), { module: 'main', operation: 'init', level: 'warning' });
         UI.renderLoading(false);
-        const emptyState = document.getElementById('emptyState');
-        if (emptyState) {
-            emptyState.textContent =
-                'Error: No authentication token provided. Please access this addon through Clockify.';
-            emptyState.classList.remove('hidden');
-        }
-        // Signal initialization complete (with error) for E2E tests
-        document.body.dataset.appReady = 'true';
+        showInitError('Error: No authentication token provided. Please access this addon through Clockify.');
         return;
     }
 
     try {
-        // Decode JWT: split on '.' to get payload (second part), then base64url decode
-        // Format: header.payload.signature, we need payload
-        // JWTs use Base64URL encoding which may contain `-` and `_` characters
-        const tokenParts = token.split('.');
-        if (tokenParts.length !== 3) {
-            throw new Error('Invalid token format');
-        }
-
-        const payload = JSON.parse(base64urlDecode(tokenParts[1])) as TokenClaims;
-
-        // Validate that payload contains required claims
-        if (!payload || !payload.workspaceId) {
-            throw new Error('Invalid token payload: missing workspaceId');
-        }
-        if (!payload.backendUrl || !isAllowedClockifyUrl(payload.backendUrl)) {
-            throw new Error('Invalid token payload: untrusted backendUrl');
-        }
-        if (payload.reportsUrl && !isAllowedClockifyUrl(payload.reportsUrl)) {
-            throw new Error('Invalid token payload: untrusted reportsUrl');
-        }
-
-        // Apply dark theme CSS class if Clockify sent theme=DARK claim
-        // This ensures OTPLUS respects user's Clockify theme preference
-        if (payload.theme === 'DARK') {
-            document.body.classList.add('cl-theme-dark');
-        }
-
-        // Reset rate limiter when workspace changes to prevent cross-workspace throttle state pollution
-        if (store.claims && store.claims.workspaceId !== payload.workspaceId) {
-            resetRateLimiter();
-        }
-
-        // Store token and claims in centralized state (state.ts) for subsequent API calls
-        store.setToken(token, payload);
-
-        // Initialize localStorage encryption if configured
-        // Await initialization to ensure encrypted writes are ready immediately
-        if (store.config.encryptStorage) {
-            try {
-                await store.initEncryption();
-                // Reload overrides with encryption support (handles migration from plaintext)
-                await store.loadOverridesEncrypted();
-            } catch (error) {
-                console.warn('Encryption initialization failed', error);
-            }
-        }
-
-        // Initialize session timeout monitoring
-        initSessionTimeout(payload);
-
-        // Resolve and set canonical timezone before deriving date keys
-        const canonicalTimeZone = resolveCanonicalTimeZone(payload);
-        setCanonicalTimeZone(canonicalTimeZone);
-
-        // Initialize UI with sensible defaults (today)
-        setDefaultDates();
-
-        // Proceed to data load and event binding
+        const payload = parseAndValidateToken(token);
+        await applyTokenClaims(token, payload);
         loadInitialData();
     } catch (e) {
         console.error('Invalid token', e);
-        reportError(e instanceof Error ? e : new Error('Invalid token'), {
-            module: 'main',
-            operation: 'init',
-            level: 'error',
-        });
+        reportError(e instanceof Error ? e : new Error('Invalid token'), { module: 'main', operation: 'init', level: 'error' });
         UI.renderLoading(false);
-        const emptyState = document.getElementById('emptyState');
-        if (emptyState) {
-            emptyState.textContent =
-                'Error: Invalid authentication token. Please try accessing the addon again.';
-            emptyState.classList.remove('hidden');
-        }
-        // Signal initialization complete (with error) for E2E tests
-        document.body.dataset.appReady = 'true';
+        showInitError('Error: Invalid authentication token. Please try accessing the addon again.');
     }
 }
 

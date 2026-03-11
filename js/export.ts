@@ -101,68 +101,75 @@ const CSV_HEADERS = [
     'isTimeOff',
 ];
 
-/**
- * Builds CSV rows for a chunk of users.
- * Extracted to keep the main export function focused on orchestration.
- */
+/** Day-level context pre-computed once per date to avoid redundant work per entry. */
+interface DayContext {
+    dateKey: string;
+    userName: string;
+    capacityFormatted: string;
+    holidayName: string;
+    isHoliday: string;
+    isNonWorking: string;
+    isTimeOff: string;
+}
+
+/** Formats a single entry into a CSV row string. */
+function formatEntryRow(ctx: DayContext, e: TimeEntry | PlaceholderEntry): string {
+    const a = e.analysis;
+    const isBillable = a?.isBillable;
+    const regular = a?.regular || 0;
+    const overtime = a?.overtime || 0;
+    const totalHours = e.timeInterval.duration ? parseIsoDuration(e.timeInterval.duration) : 0;
+
+    return [
+        ctx.dateKey,
+        ctx.userName,
+        sanitizeFormulaInjection(e.description),
+        ctx.capacityFormatted,
+        formatHours(regular),
+        formatHours(overtime),
+        formatHours(a?.dailyOvertime || 0),
+        formatHours(a?.weeklyOvertime || 0),
+        formatHours(a?.overlapOvertime || 0),
+        formatHours(a?.combinedOvertime ?? overtime),
+        formatHours(isBillable ? regular : 0),
+        formatHours(isBillable ? overtime : 0),
+        formatHours(isBillable ? 0 : regular),
+        formatHours(isBillable ? 0 : overtime),
+        formatHours(totalHours),
+        formatHoursDecimal(totalHours),
+        ctx.isHoliday,
+        ctx.holidayName,
+        ctx.isNonWorking,
+        ctx.isTimeOff,
+    ].map(escapeCsv).join(',');
+}
+
+/** Placeholder entry for days with no time entries. */
+function makePlaceholderEntry(dateKey: string): PlaceholderEntry {
+    return {
+        description: '(no entries)',
+        timeInterval: { start: dateKey + 'T00:00:00Z', duration: 'PT0H' },
+        analysis: { regular: 0, overtime: 0, isBillable: false },
+    };
+}
+
 function buildRowsForUsers(users: UserAnalysis[]): string[] {
     const rows: string[] = [];
     for (const user of users) {
         const userName = sanitizeFormulaInjection(user.userName);
         for (const [dateKey, day] of user.days) {
-            const entriesToLoop: (TimeEntry | PlaceholderEntry)[] =
-                day.entries.length > 0
-                    ? day.entries
-                    : [
-                          {
-                              description: '(no entries)',
-                              timeInterval: {
-                                  start: dateKey + 'T00:00:00Z',
-                                  duration: 'PT0H',
-                              },
-                              analysis: { regular: 0, overtime: 0, isBillable: false },
-                          },
-                      ];
-
-            const capacityFormatted = formatHours(day.meta?.capacity ?? 0);
-            const holidayName = sanitizeFormulaInjection(day.meta?.holidayName);
-            const isHoliday = day.meta?.isHoliday ? 'Yes' : 'No';
-            const isNonWorking = day.meta?.isNonWorking ? 'Yes' : 'No';
-            const isTimeOff = day.meta?.isTimeOff ? 'Yes' : 'No';
-
-            for (const e of entriesToLoop) {
-                const a = e.analysis;
-                const isBillable = a?.isBillable;
-                const regular = a?.regular || 0;
-                const overtime = a?.overtime || 0;
-                const totalHours = e.timeInterval.duration
-                    ? parseIsoDuration(e.timeInterval.duration)
-                    : 0;
-
-                const row = [
-                    dateKey,
-                    userName,
-                    sanitizeFormulaInjection(e.description),
-                    capacityFormatted,
-                    formatHours(regular),
-                    formatHours(overtime),
-                    formatHours(a?.dailyOvertime || 0),
-                    formatHours(a?.weeklyOvertime || 0),
-                    formatHours(a?.overlapOvertime || 0),
-                    formatHours(a?.combinedOvertime ?? overtime),
-                    formatHours(isBillable ? regular : 0),
-                    formatHours(isBillable ? overtime : 0),
-                    formatHours(isBillable ? 0 : regular),
-                    formatHours(isBillable ? 0 : overtime),
-                    formatHours(totalHours),
-                    formatHoursDecimal(totalHours),
-                    isHoliday,
-                    holidayName,
-                    isNonWorking,
-                    isTimeOff,
-                ].map(escapeCsv);
-
-                rows.push(row.join(','));
+            const ctx: DayContext = {
+                dateKey,
+                userName,
+                capacityFormatted: formatHours(day.meta?.capacity ?? 0),
+                holidayName: sanitizeFormulaInjection(day.meta?.holidayName),
+                isHoliday: day.meta?.isHoliday ? 'Yes' : 'No',
+                isNonWorking: day.meta?.isNonWorking ? 'Yes' : 'No',
+                isTimeOff: day.meta?.isTimeOff ? 'Yes' : 'No',
+            };
+            const entries = day.entries.length > 0 ? day.entries : [makePlaceholderEntry(dateKey)];
+            for (const e of entries) {
+                rows.push(formatEntryRow(ctx, e));
             }
         }
     }
