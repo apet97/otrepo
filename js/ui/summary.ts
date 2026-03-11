@@ -22,6 +22,7 @@ import {
     getAmountLabels,
     renderAmountStack,
     getSwatchColor,
+    buildPaginationControls,
 } from './shared.js';
 
 const SWATCH_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
@@ -671,21 +672,12 @@ export function renderSummaryTable(users: UserAnalysis[]): void {
         Elements.summaryTableBody.appendChild(fragment);
     }
 
-    // Render pagination controls
+    // Render pagination controls (DOM-based, no innerHTML)
     const paginationContainer = document.getElementById('summaryPaginationControls');
     if (paginationContainer) {
-        if (totalPages > 1) {
-            paginationContainer.innerHTML = `
-              <div class="pagination-controls" style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:16px;">
-                <button class="btn-secondary btn-sm summary-page-btn" ${page === 1 ? 'disabled' : ''} data-summary-page="1" title="First page">First</button>
-                <button class="btn-secondary btn-sm summary-page-btn" ${page === 1 ? 'disabled' : ''} data-summary-page="${page - 1}" title="Previous page">Prev</button>
-                <span style="font-size:12px; color:var(--text-secondary);">Page ${page} of ${totalPages} (${rows.length} rows)</span>
-                <button class="btn-secondary btn-sm summary-page-btn" ${page === totalPages ? 'disabled' : ''} data-summary-page="${page + 1}" title="Next page">Next</button>
-                <button class="btn-secondary btn-sm summary-page-btn" ${page === totalPages ? 'disabled' : ''} data-summary-page="${totalPages}" title="Last page">Last</button>
-              </div>`;
-        } else {
-            paginationContainer.innerHTML = '';
-        }
+        paginationContainer.innerHTML = '';
+        const controls = buildPaginationControls(page, totalPages, 'summary-page-btn', 'summaryPage', `${rows.length} rows`);
+        if (controls) paginationContainer.appendChild(controls);
     }
 
     /* istanbul ignore else -- Elements are always initialized when this function is called */

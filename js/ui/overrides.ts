@@ -6,7 +6,7 @@
 
 import { store } from '../state.js';
 import { IsoUtils } from '../utils.js';
-import { getElements, escapeHtml } from './shared.js';
+import { getElements, escapeHtml, buildPaginationControls } from './shared.js';
 
 /**
  * Shows the overrides page and hides the main view.
@@ -192,21 +192,12 @@ export function renderOverridesPage(): void {
     container.innerHTML = '';
     container.appendChild(fragment);
 
-    // Pagination controls
+    // Pagination controls (DOM-based, no innerHTML)
     const paginationContainer = document.getElementById('overridesPaginationControls');
     if (paginationContainer) {
-        if (totalPages > 1) {
-            paginationContainer.innerHTML = `
-              <div class="pagination-controls" style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:16px;">
-                <button class="btn-secondary btn-sm overrides-page-btn" ${page === 1 ? 'disabled' : ''} data-overrides-page="1">First</button>
-                <button class="btn-secondary btn-sm overrides-page-btn" ${page === 1 ? 'disabled' : ''} data-overrides-page="${page - 1}">Prev</button>
-                <span style="font-size:12px; color:var(--text-secondary);">Page ${page} of ${totalPages}</span>
-                <button class="btn-secondary btn-sm overrides-page-btn" ${page === totalPages ? 'disabled' : ''} data-overrides-page="${page + 1}">Next</button>
-                <button class="btn-secondary btn-sm overrides-page-btn" ${page === totalPages ? 'disabled' : ''} data-overrides-page="${totalPages}">Last</button>
-              </div>`;
-        } else {
-            paginationContainer.innerHTML = '';
-        }
+        paginationContainer.innerHTML = '';
+        const controls = buildPaginationControls(page, totalPages, 'overrides-page-btn', 'overridesPage');
+        if (controls) paginationContainer.appendChild(controls);
     }
 
     // UX-5: Restore scroll position and focus after re-render

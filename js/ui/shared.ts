@@ -229,5 +229,56 @@ export function getSwatchColor(key: string | undefined): string {
     return SWATCH_COLORS[hash % SWATCH_COLORS.length];
 }
 
+/**
+ * Builds pagination controls using DOM APIs instead of innerHTML.
+ * Used by summary and overrides pagination to avoid unnecessary HTML parsing.
+ *
+ * @param page - Current page number (1-based)
+ * @param totalPages - Total number of pages
+ * @param btnClass - CSS class for page buttons (e.g. 'summary-page-btn')
+ * @param dataAttr - Data attribute name for page number (e.g. 'summaryPage')
+ * @param infoText - Optional info text (e.g. '100 rows')
+ * @returns DocumentFragment with pagination controls, or null if only 1 page
+ */
+export function buildPaginationControls(
+    page: number,
+    totalPages: number,
+    btnClass: string,
+    dataAttr: string,
+    infoText?: string,
+): DocumentFragment | null {
+    if (totalPages <= 1) return null;
+
+    const fragment = document.createDocumentFragment();
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pagination-controls';
+    wrapper.style.cssText = 'display:flex; justify-content:center; align-items:center; gap:10px; margin-top:16px;';
+
+    const makeBtn = (label: string, targetPage: number, disabled: boolean) => {
+        const btn = document.createElement('button');
+        btn.className = `btn-secondary btn-sm ${btnClass}`;
+        btn.textContent = label;
+        btn.disabled = disabled;
+        btn.dataset[dataAttr] = String(targetPage);
+        return btn;
+    };
+
+    wrapper.appendChild(makeBtn('First', 1, page === 1));
+    wrapper.appendChild(makeBtn('Prev', page - 1, page === 1));
+
+    const info = document.createElement('span');
+    info.style.cssText = 'font-size:12px; color:var(--text-secondary);';
+    info.textContent = infoText
+        ? `Page ${page} of ${totalPages} (${infoText})`
+        : `Page ${page} of ${totalPages}`;
+    wrapper.appendChild(info);
+
+    wrapper.appendChild(makeBtn('Next', page + 1, page === totalPages));
+    wrapper.appendChild(makeBtn('Last', totalPages, page === totalPages));
+
+    fragment.appendChild(wrapper);
+    return fragment;
+}
+
 // Re-export common utilities
 export { formatHours, formatHoursDecimal, formatCurrency, escapeHtml };

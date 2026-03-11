@@ -119,8 +119,13 @@ async function build() {
         await context.watch();
         console.log('Watching for changes...');
     } else {
-        // Single build
-        await esbuild.build(buildOptions);
+        // Single build with metafile for bundle analysis
+        const result = await esbuild.build({ ...buildOptions, metafile: true });
+        if (isProduction && result.metafile) {
+            fs.writeFileSync('dist/meta.json', JSON.stringify(result.metafile));
+            const text = await esbuild.analyzeMetafile(result.metafile, { verbose: false });
+            console.log('\nBundle analysis:\n' + text);
+        }
     }
 
     // Copy static assets

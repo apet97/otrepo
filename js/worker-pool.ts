@@ -273,7 +273,7 @@ export class WorkerPool<TPayload = unknown, TResult = unknown> {
             }
 
             while (settled.length > 0) {
-                const item = settled.shift()!;
+                const item = settled.shift() as { result?: TResult; error?: Error };
                 if (item.error) {
                     throw item.error;
                 }

@@ -152,7 +152,7 @@ export async function deriveEncryptionKey(
     _passphrase?: string
 ): Promise<CryptoKey> {
     if (keyCache.has(workspaceId)) {
-        return keyCache.get(workspaceId)!;
+        return keyCache.get(workspaceId) as CryptoKey;
     }
 
     const pending = pendingKeyPromises.get(workspaceId);

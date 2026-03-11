@@ -7,7 +7,7 @@
 import { formatHours, formatHoursDecimal, parseIsoDuration, escapeCsv, hashString } from './utils.js';
 import { createLogger } from './logger.js';
 import { store } from './state.js';
-import type { UserAnalysis, TimeEntry, DayData } from './types.js';
+import type { UserAnalysis, TimeEntry } from './types.js';
 
 /** Logger for export audit events */
 const exportLogger = createLogger('Export');
@@ -105,11 +105,11 @@ const CSV_HEADERS = [
  * Builds CSV rows for a chunk of users.
  * Extracted to keep the main export function focused on orchestration.
  */
-// eslint-disable-next-line complexity -- CSV row generation with many data fields
 function buildRowsForUsers(users: UserAnalysis[]): string[] {
     const rows: string[] = [];
-    users.forEach((user) => {
-        Array.from(user.days.entries()).forEach(([dateKey, day]: [string, DayData]) => {
+    for (const user of users) {
+        const userName = sanitizeFormulaInjection(user.userName);
+        for (const [dateKey, day] of user.days) {
             const entriesToLoop: (TimeEntry | PlaceholderEntry)[] =
                 day.entries.length > 0
                     ? day.entries
@@ -124,19 +124,17 @@ function buildRowsForUsers(users: UserAnalysis[]): string[] {
                           },
                       ];
 
-            entriesToLoop.forEach((e) => {
-                const userName = sanitizeFormulaInjection(user.userName);
-                const description = sanitizeFormulaInjection(e.description);
-                const holidayName = sanitizeFormulaInjection(day.meta?.holidayName);
+            const capacityFormatted = formatHours(day.meta?.capacity ?? 0);
+            const holidayName = sanitizeFormulaInjection(day.meta?.holidayName);
+            const isHoliday = day.meta?.isHoliday ? 'Yes' : 'No';
+            const isNonWorking = day.meta?.isNonWorking ? 'Yes' : 'No';
+            const isTimeOff = day.meta?.isTimeOff ? 'Yes' : 'No';
 
-                const billableWorked = e.analysis?.isBillable ? e.analysis?.regular || 0 : 0;
-                const billableOT = e.analysis?.isBillable ? e.analysis?.overtime || 0 : 0;
-                const nonBillableWorked = !e.analysis?.isBillable ? e.analysis?.regular || 0 : 0;
-                const nonBillableOT = !e.analysis?.isBillable ? e.analysis?.overtime || 0 : 0;
-                const dailyOT = e.analysis?.dailyOvertime || 0;
-                const weeklyOT = e.analysis?.weeklyOvertime || 0;
-                const overlapOT = e.analysis?.overlapOvertime || 0;
-                const combinedOT = e.analysis?.combinedOvertime ?? e.analysis?.overtime ?? 0;
+            for (const e of entriesToLoop) {
+                const a = e.analysis;
+                const isBillable = a?.isBillable;
+                const regular = a?.regular || 0;
+                const overtime = a?.overtime || 0;
                 const totalHours = e.timeInterval.duration
                     ? parseIsoDuration(e.timeInterval.duration)
                     : 0;
@@ -144,30 +142,30 @@ function buildRowsForUsers(users: UserAnalysis[]): string[] {
                 const row = [
                     dateKey,
                     userName,
-                    description,
-                    formatHours(day.meta?.capacity ?? 0),
-                    formatHours(e.analysis?.regular || 0),
-                    formatHours(e.analysis?.overtime || 0),
-                    formatHours(dailyOT),
-                    formatHours(weeklyOT),
-                    formatHours(overlapOT),
-                    formatHours(combinedOT),
-                    formatHours(billableWorked),
-                    formatHours(billableOT),
-                    formatHours(nonBillableWorked),
-                    formatHours(nonBillableOT),
+                    sanitizeFormulaInjection(e.description),
+                    capacityFormatted,
+                    formatHours(regular),
+                    formatHours(overtime),
+                    formatHours(a?.dailyOvertime || 0),
+                    formatHours(a?.weeklyOvertime || 0),
+                    formatHours(a?.overlapOvertime || 0),
+                    formatHours(a?.combinedOvertime ?? overtime),
+                    formatHours(isBillable ? regular : 0),
+                    formatHours(isBillable ? overtime : 0),
+                    formatHours(isBillable ? 0 : regular),
+                    formatHours(isBillable ? 0 : overtime),
                     formatHours(totalHours),
                     formatHoursDecimal(totalHours),
-                    day.meta?.isHoliday ? 'Yes' : 'No',
+                    isHoliday,
                     holidayName,
-                    day.meta?.isNonWorking ? 'Yes' : 'No',
-                    day.meta?.isTimeOff ? 'Yes' : 'No',
+                    isNonWorking,
+                    isTimeOff,
                 ].map(escapeCsv);
 
                 rows.push(row.join(','));
-            });
-        });
-    });
+            }
+        }
+    }
     return rows;
 }
 

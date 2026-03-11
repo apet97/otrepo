@@ -66,7 +66,8 @@ jest.unstable_mockModule('../../js/ui/shared.js', () => ({
   getAmountDisplayMode: jest.fn(() => mockStore?.config?.amountDisplay || 'earned'),
   getAmountLabels: jest.fn(() => ({ total: 'Total Amount', base: 'Base Amount' })),
   renderAmountStack: jest.fn((lines) => lines.map(l => `${l.label}: $${l.value}`).join('<br>')),
-  getSwatchColor: jest.fn(() => '#000')
+  getSwatchColor: jest.fn(() => '#000'),
+  buildPaginationControls: jest.fn(() => null),
 }));
 
 describe('Summary Strip Layout Specification', () => {

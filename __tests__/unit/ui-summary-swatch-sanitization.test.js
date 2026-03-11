@@ -26,7 +26,8 @@ jest.unstable_mockModule('../../js/ui/shared.js', () => ({
     rate: 'Rate'
   })),
   renderAmountStack: jest.fn(() => ''),
-  getSwatchColor: jest.fn(() => maliciousColor)
+  getSwatchColor: jest.fn(() => maliciousColor),
+  buildPaginationControls: jest.fn(() => null),
 }));
 
 const { renderSummaryTable } = await import('../../js/ui/summary.js');

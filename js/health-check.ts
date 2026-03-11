@@ -28,131 +28,49 @@ export interface HealthCheckResult {
     version: string;
     /** Detailed component status */
     components: {
-        /** Circuit breaker status */
-        circuitBreaker: {
-            state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
-            failureCount: number;
-            isHealthy: boolean;
-        };
-        /** Storage subsystem status */
-        storage: {
-            type: 'localStorage' | 'memory';
-            isHealthy: boolean;
-        };
-        /** API integration status */
-        api: {
-            profilesFailed: number;
-            holidaysFailed: number;
-            timeOffFailed: number;
-            isHealthy: boolean;
-        };
-        /** Authentication status */
-        auth: {
-            hasToken: boolean;
-            isExpired: boolean;
-            isHealthy: boolean;
-        };
-        /** Worker subsystem status */
-        workers: {
-            supported: boolean;
-            initialized: boolean;
-            terminated: boolean;
-            taskFailures: number;
-            isHealthy: boolean;
-        };
-        /** Encryption subsystem status */
-        encryption: {
-            enabled: boolean;
-            supported: boolean;
-            keyReady: boolean;
-            pending: boolean;
-            isHealthy: boolean;
-        };
+        circuitBreaker: { state: 'CLOSED' | 'OPEN' | 'HALF_OPEN'; failureCount: number; isHealthy: boolean };
+        storage: { type: 'localStorage' | 'memory'; isHealthy: boolean };
+        api: { profilesFailed: number; holidaysFailed: number; timeOffFailed: number; isHealthy: boolean };
+        auth: { hasToken: boolean; isExpired: boolean; isHealthy: boolean };
+        workers: { supported: boolean; initialized: boolean; terminated: boolean; taskFailures: number; isHealthy: boolean };
+        encryption: { enabled: boolean; supported: boolean; keyReady: boolean; pending: boolean; isHealthy: boolean };
     };
     /** Array of issues if status is degraded or unhealthy */
     issues: string[];
 }
 
-/**
- * Performs a comprehensive health check of the application.
- *
- * Aggregates health status from multiple subsystems:
- * - Circuit breaker: Checks if API requests are being blocked due to failures
- * - Storage: Checks if localStorage is available or using fallback
- * - API: Checks for failed profile/holiday/time-off fetches
- * - Auth: Checks token validity and expiration
- * - Workers: Checks worker pool status and task failures
- * - Encryption: Checks encryption key readiness when enabled
- *
- * @returns HealthCheckResult with overall status and component details
- */
-export function getHealthStatus(): HealthCheckResult {
-    const issues: string[] = [];
+// ============================================================================
+// PER-SUBSYSTEM PROBES
+// ============================================================================
 
-    // Check circuit breaker status
+function probeCircuitBreaker(issues: string[]) {
     const cbState = getCircuitBreakerState();
-    const cbHealthy = cbState.state === 'CLOSED';
-    if (!cbHealthy) {
+    const isHealthy = cbState.state === 'CLOSED';
+    if (!isHealthy) {
         issues.push(`Circuit breaker ${cbState.state}: ${cbState.failureCount} failures`);
     }
+    return { state: cbState.state, failureCount: cbState.failureCount, isHealthy };
+}
 
-    // Check storage status
+function probeStorage(issues: string[]) {
     const usingFallback = isUsingFallbackStorage();
     if (usingFallback) {
         issues.push('Using in-memory fallback storage (localStorage unavailable)');
     }
+    return { type: (usingFallback ? 'memory' : 'localStorage') as 'localStorage' | 'memory', isHealthy: true };
+}
 
-    // Check API status from store
-    const apiStatus = store.apiStatus;
-    const apiHealthy =
-        apiStatus.profilesFailed === 0 &&
-        apiStatus.holidaysFailed === 0 &&
-        apiStatus.timeOffFailed === 0;
-    if (apiStatus.profilesFailed > 0) {
-        issues.push(`${apiStatus.profilesFailed} profile fetch(es) failed`);
-    }
-    if (apiStatus.holidaysFailed > 0) {
-        issues.push(`${apiStatus.holidaysFailed} holiday fetch(es) failed`);
-    }
-    if (apiStatus.timeOffFailed > 0) {
-        issues.push(`${apiStatus.timeOffFailed} time-off fetch(es) failed`);
-    }
+function probeApi(issues: string[]) {
+    const { profilesFailed, holidaysFailed, timeOffFailed } = store.apiStatus;
+    const isHealthy = profilesFailed === 0 && holidaysFailed === 0 && timeOffFailed === 0;
+    if (profilesFailed > 0) issues.push(`${profilesFailed} profile fetch(es) failed`);
+    if (holidaysFailed > 0) issues.push(`${holidaysFailed} holiday fetch(es) failed`);
+    if (timeOffFailed > 0) issues.push(`${timeOffFailed} time-off fetch(es) failed`);
+    if (store.diagnostics?.sentryInitFailed) issues.push('Error reporting initialization failed');
+    return { profilesFailed, holidaysFailed, timeOffFailed, isHealthy };
+}
 
-    // Check error reporting status
-    if (store.diagnostics?.sentryInitFailed) {
-        issues.push('Error reporting initialization failed');
-    }
-
-    // Check worker subsystem status
-    const workerSupported = isWorkerSupported();
-    const workerTerminated = store.diagnostics?.workerPoolTerminated ?? false;
-    const workerInitFailed = store.diagnostics?.workerPoolInitFailed ?? false;
-    const workerTaskFailures = store.diagnostics?.workerTaskFailures ?? 0;
-    const workerHealthy = !workerInitFailed && !workerTerminated && workerTaskFailures === 0;
-
-    if (workerInitFailed) {
-        issues.push('Worker pool initialization failed');
-    }
-    if (workerTerminated) {
-        issues.push('Worker pool terminated');
-    }
-    if (workerTaskFailures > 0) {
-        issues.push(`${workerTaskFailures} worker task(s) failed`);
-    }
-
-    // Check encryption status
-    const encryptionStatus = store.getEncryptionStatus?.() ?? {
-        enabled: false,
-        supported: false,
-        keyReady: false,
-        pending: false,
-    };
-    const encryptionHealthy = !encryptionStatus.enabled || encryptionStatus.keyReady;
-    if (encryptionStatus.enabled && !encryptionStatus.keyReady) {
-        issues.push('Encryption key not initialized');
-    }
-
-    // Check auth status
+function probeAuth(issues: string[]) {
     const hasToken = !!store.token;
     let isExpired = false;
     if (hasToken) {
@@ -160,9 +78,8 @@ export function getHealthStatus(): HealthCheckResult {
             const parts = (store.token ?? '').split('.');
             if (parts.length === 3) {
                 const payload = JSON.parse(base64urlDecode(parts[1]));
-                const exp = payload.exp;
-                if (typeof exp === 'number') {
-                    isExpired = exp < Math.floor(Date.now() / 1000);
+                if (typeof payload.exp === 'number') {
+                    isExpired = payload.exp < Math.floor(Date.now() / 1000);
                 }
             } else {
                 isExpired = true;
@@ -171,16 +88,52 @@ export function getHealthStatus(): HealthCheckResult {
             isExpired = true;
         }
     }
-    const authHealthy = hasToken && !isExpired;
-    if (!hasToken) {
-        issues.push('No authentication token');
-    } else if (isExpired) {
-        issues.push('Authentication token has expired');
-    }
+    const isHealthy = hasToken && !isExpired;
+    if (!hasToken) issues.push('No authentication token');
+    else if (isExpired) issues.push('Authentication token has expired');
+    return { hasToken, isExpired, isHealthy };
+}
 
-    // Determine overall status
+function probeWorkers(issues: string[]) {
+    const supported = isWorkerSupported();
+    const terminated = store.diagnostics?.workerPoolTerminated ?? false;
+    const initFailed = store.diagnostics?.workerPoolInitFailed ?? false;
+    const taskFailures = store.diagnostics?.workerTaskFailures ?? 0;
+    const isHealthy = !initFailed && !terminated && taskFailures === 0;
+    if (initFailed) issues.push('Worker pool initialization failed');
+    if (terminated) issues.push('Worker pool terminated');
+    if (taskFailures > 0) issues.push(`${taskFailures} worker task(s) failed`);
+    return { supported, initialized: !initFailed, terminated, taskFailures, isHealthy };
+}
+
+function probeEncryption(issues: string[]) {
+    const status = store.getEncryptionStatus?.() ?? {
+        enabled: false, supported: false, keyReady: false, pending: false,
+    };
+    const isHealthy = !status.enabled || status.keyReady;
+    if (status.enabled && !status.keyReady) issues.push('Encryption key not initialized');
+    return { enabled: status.enabled, supported: status.supported, keyReady: status.keyReady, pending: status.pending, isHealthy };
+}
+
+// ============================================================================
+// AGGREGATE
+// ============================================================================
+
+/**
+ * Performs a comprehensive health check of the application.
+ */
+export function getHealthStatus(): HealthCheckResult {
+    const issues: string[] = [];
+
+    const circuitBreaker = probeCircuitBreaker(issues);
+    const storage = probeStorage(issues);
+    const api = probeApi(issues);
+    const auth = probeAuth(issues);
+    const workers = probeWorkers(issues);
+    const encryption = probeEncryption(issues);
+
     let status: 'healthy' | 'degraded' | 'unhealthy';
-    if (!authHealthy || cbState.state === 'OPEN') {
+    if (!auth.isHealthy || circuitBreaker.state === 'OPEN') {
         status = 'unhealthy';
     } else if (issues.length > 0) {
         status = 'degraded';
@@ -192,42 +145,7 @@ export function getHealthStatus(): HealthCheckResult {
         status,
         timestamp: new Date().toISOString(),
         version: process.env.VERSION ?? '0.0.0',
-        components: {
-            circuitBreaker: {
-                state: cbState.state,
-                failureCount: cbState.failureCount,
-                isHealthy: cbHealthy,
-            },
-            storage: {
-                type: usingFallback ? 'memory' : 'localStorage',
-                isHealthy: true,
-            },
-            api: {
-                profilesFailed: apiStatus.profilesFailed,
-                holidaysFailed: apiStatus.holidaysFailed,
-                timeOffFailed: apiStatus.timeOffFailed,
-                isHealthy: apiHealthy,
-            },
-            auth: {
-                hasToken,
-                isExpired,
-                isHealthy: authHealthy,
-            },
-            workers: {
-                supported: workerSupported,
-                initialized: !workerInitFailed,
-                terminated: workerTerminated,
-                taskFailures: workerTaskFailures,
-                isHealthy: workerHealthy,
-            },
-            encryption: {
-                enabled: encryptionStatus.enabled,
-                supported: encryptionStatus.supported,
-                keyReady: encryptionStatus.keyReady,
-                pending: encryptionStatus.pending,
-                isHealthy: encryptionHealthy,
-            },
-        },
+        components: { circuitBreaker, storage, api, auth, workers, encryption },
         issues,
     };
 }

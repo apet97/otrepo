@@ -19,17 +19,9 @@ export { showOverridesPage, hideOverridesPage, renderOverridesPage } from './ove
 export { renderLoading, renderApiStatus, renderPaginationWarning, showError, hideError, showClearDataConfirmation, showLargeDateRangeWarning, updateLoadingProgress, clearLoadingProgress, renderThrottleStatus, showCachePrompt, showSessionExpiringWarning, hideSessionWarning, showSessionExpiredDialog } from './dialogs.js';
 export type { CacheAction } from './dialogs.js';
 
-/**
- * Binds global UI events (scrolling, inputs, buttons).
- * Uses delegation for dynamic elements like pagination.
- *
- * @param callbacks - Callback functions for actions (onGenerate, onOverrideChange).
- */
-export function bindEvents(callbacks: UICallbacks): () => void {
-    const Elements = getElements();
-
-    // Prevent scroll wheel from changing number inputs when focused
-    const wheelHandler = (e: WheelEvent) => {
+/** Shared handler: prevent scroll wheel from changing focused number inputs. */
+function createWheelHandler(): (e: WheelEvent) => void {
+    return (e: WheelEvent) => {
         const target = e.target as HTMLElement;
         if (
             target.tagName === 'INPUT' &&
@@ -39,16 +31,29 @@ export function bindEvents(callbacks: UICallbacks): () => void {
             e.preventDefault();
         }
     };
-    if (Elements.overridesUserList) {
-        Elements.overridesUserList.addEventListener('wheel', wheelHandler, { passive: false });
-    }
-    const detailedContainer = document.getElementById('detailedTableContainer');
-    if (detailedContainer) {
-        detailedContainer.addEventListener('wheel', wheelHandler, { passive: false });
-    }
+}
 
-    // Detailed table event delegation (pagination + status popover)
-    const detailedClickHandler = (e: MouseEvent) => {
+/** Toggle collapse on an override card (used by both click and keyboard). */
+function toggleCardCollapse(header: Element): void {
+    const card = header.closest('.override-user-card');
+    if (!card) return;
+    card.classList.toggle('collapsed');
+    const isExpanded = !card.classList.contains('collapsed');
+    header.setAttribute('aria-expanded', String(isExpanded));
+    const toggleIcon = header.querySelector('.toggle-icon');
+    if (toggleIcon) {
+        toggleIcon.innerHTML = isExpanded ? '&#9660;' : '&#9654;';
+    }
+}
+
+/** Bind detailed table events (pagination, status popover). Returns cleanup. */
+function bindDetailedTableEvents(
+    detailedContainer: HTMLElement,
+    wheelHandler: (e: WheelEvent) => void,
+): () => void {
+    detailedContainer.addEventListener('wheel', wheelHandler, { passive: false });
+
+    const clickHandler = (e: MouseEvent) => {
         const target = e.target as HTMLElement;
 
         // Pagination
@@ -95,7 +100,6 @@ export function bindEvents(callbacks: UICallbacks): () => void {
                         <dd>Break entry (counts as regular hours)</dd>
                     </dl>
                 `;
-                // Add close button handler
                 const closeBtn = popover.querySelector('.popover-close');
                 if (closeBtn) {
                     closeBtn.addEventListener('click', (e) => {
@@ -109,18 +113,25 @@ export function bindEvents(callbacks: UICallbacks): () => void {
         }
 
         // Close popover when clicking outside (but inside container)
-        const openPopover = detailedContainer!.querySelector('.status-info-popover:not(.hidden)');
+        const openPopover = detailedContainer?.querySelector('.status-info-popover:not(.hidden)');
         if (openPopover && !openPopover.contains(target)) {
             openPopover.classList.add('hidden');
         }
     };
-    if (detailedContainer) {
-        detailedContainer.addEventListener('click', detailedClickHandler);
-    }
+    detailedContainer.addEventListener('click', clickHandler);
 
-    // Summary table pagination event delegation
-    const summaryPaginationContainer = document.getElementById('summaryPaginationControls');
-    const summaryPaginationHandler = (e: MouseEvent) => {
+    return () => {
+        detailedContainer.removeEventListener('wheel', wheelHandler, { passive: false } as EventListenerOptions);
+        detailedContainer.removeEventListener('click', clickHandler);
+    };
+}
+
+/** Bind summary table pagination. Returns cleanup. */
+function bindSummaryPagination(): () => void {
+    const container = document.getElementById('summaryPaginationControls');
+    if (!container) return () => {};
+
+    const handler = (e: MouseEvent) => {
         const target = e.target as HTMLElement;
         if (target.matches('.summary-page-btn')) {
             const newPage = parseInt(target.dataset.summaryPage || '', 10);
@@ -132,111 +143,75 @@ export function bindEvents(callbacks: UICallbacks): () => void {
             }
         }
     };
-    if (summaryPaginationContainer) {
-        summaryPaginationContainer.addEventListener('click', summaryPaginationHandler);
+    container.addEventListener('click', handler);
+    return () => container.removeEventListener('click', handler);
+}
+
+/** Bind overrides panel events (pagination, search, inputs, cards). Returns cleanup. */
+function bindOverridesEvents(
+    callbacks: UICallbacks,
+    Elements: ReturnType<typeof getElements>,
+    wheelHandler: (e: WheelEvent) => void,
+): () => void {
+    const cleanups: (() => void)[] = [];
+
+    // Wheel handler on overrides list
+    const overridesUserList = Elements.overridesUserList;
+    if (overridesUserList) {
+        overridesUserList.addEventListener('wheel', wheelHandler, { passive: false });
+        cleanups.push(() =>
+            overridesUserList.removeEventListener('wheel', wheelHandler, { passive: false } as EventListenerOptions)
+        );
     }
 
-    // Overrides pagination event delegation
-    const overridesPaginationContainer = document.getElementById('overridesPaginationControls');
-    const overridesPaginationHandler = (e: MouseEvent) => {
-        const target = e.target as HTMLElement;
-        if (target.matches('.overrides-page-btn')) {
-            const newPage = parseInt(target.dataset.overridesPage || '', 10);
-            if (!isNaN(newPage)) {
-                store.ui.overridesPage = newPage;
-                renderOverridesPage();
+    // Overrides pagination
+    const paginationContainer = document.getElementById('overridesPaginationControls');
+    if (paginationContainer) {
+        const handler = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.matches('.overrides-page-btn')) {
+                const newPage = parseInt(target.dataset.overridesPage || '', 10);
+                if (!isNaN(newPage)) {
+                    store.ui.overridesPage = newPage;
+                    renderOverridesPage();
+                }
             }
-        }
-    };
-    if (overridesPaginationContainer) {
-        overridesPaginationContainer.addEventListener('click', overridesPaginationHandler);
+        };
+        paginationContainer.addEventListener('click', handler);
+        cleanups.push(() => paginationContainer.removeEventListener('click', handler));
     }
 
-    // Overrides search input with debounce
-    const overridesSearchContainer = document.getElementById('overridesSearchContainer');
-    let overridesSearchTimer: ReturnType<typeof setTimeout> | null = null;
-    const overridesSearchHandler = (e: Event) => {
-        const target = e.target as HTMLInputElement;
-        if (target.id === 'overridesSearchInput') {
-            if (overridesSearchTimer) clearTimeout(overridesSearchTimer);
-            overridesSearchTimer = setTimeout(() => {
-                store.ui.overridesSearch = target.value;
-                store.ui.overridesPage = 1;
-                renderOverridesPage();
-            }, 250);
-        }
-    };
-    if (overridesSearchContainer) {
-        overridesSearchContainer.addEventListener('input', overridesSearchHandler);
-    }
-
-    // UX-3: Close popover on Escape key — named function for cleanup
-    const escapeKeyHandler = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && detailedContainer) {
-            const openPopover = detailedContainer.querySelector('.status-info-popover:not(.hidden)');
-            if (openPopover) {
-                openPopover.classList.add('hidden');
+    // Overrides search with debounce
+    const searchContainer = document.getElementById('overridesSearchContainer');
+    let searchTimer: ReturnType<typeof setTimeout> | null = null;
+    if (searchContainer) {
+        const handler = (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            if (target.id === 'overridesSearchInput') {
+                if (searchTimer) clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    store.ui.overridesSearch = target.value;
+                    store.ui.overridesPage = 1;
+                    renderOverridesPage();
+                }, 250);
             }
-        }
-    };
-    document.addEventListener('keydown', escapeKeyHandler);
-
-    // UX-4: Arrow key navigation for filter chips (radiogroup pattern)
-    const filterChipContainer = document.getElementById('detailedFilters');
-    const filterChipKeyHandler = (e: KeyboardEvent) => {
-        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-        const chips = Array.from(filterChipContainer!.querySelectorAll<HTMLElement>('.chip'));
-        if (chips.length === 0) return;
-        const currentIndex = chips.indexOf(e.target as HTMLElement);
-        if (currentIndex === -1) return;
-        e.preventDefault();
-        const nextIndex = e.key === 'ArrowRight'
-            ? (currentIndex + 1) % chips.length
-            : (currentIndex - 1 + chips.length) % chips.length;
-        chips[nextIndex].focus();
-        chips[nextIndex].click();
-    };
-    if (filterChipContainer) {
-        filterChipContainer.addEventListener('keydown', filterChipKeyHandler);
+        };
+        searchContainer.addEventListener('input', handler);
+        cleanups.push(() => {
+            searchContainer.removeEventListener('input', handler);
+            if (searchTimer) clearTimeout(searchTimer);
+        });
     }
 
-    // Generate button
-    const generateBtn = document.getElementById('generateBtn');
-    const generateClickHandler = () => callbacks.onGenerate();
-    if (generateBtn) {
-        generateBtn.addEventListener('click', generateClickHandler);
-    }
-
-    // Overrides page navigation
-    const openOverridesClickHandler = () => {
-        showOverridesPage();
-    };
-    if (Elements.openOverridesBtn) {
-        Elements.openOverridesBtn.addEventListener('click', openOverridesClickHandler);
-    }
-
-    const closeOverridesClickHandler = () => {
-        hideOverridesPage();
-        // Trigger recalculation if report data exists
-        if (store.analysisResults) {
-            callbacks.onGenerate();
-        }
-    };
-    if (Elements.closeOverridesBtn) {
-        Elements.closeOverridesBtn.addEventListener('click', closeOverridesClickHandler);
-    }
-
-    // Overrides page event delegation (for card-based inputs)
-    const overridesInputHandler = (e: Event) => {
+    // Card input delegation (global, per-day, weekly overrides)
+    const inputHandler = (e: Event) => {
         const target = e.target as HTMLElement;
 
-        // Global override handler
         if (target.matches('input.override-input')) {
             const input = target as HTMLInputElement;
             const { userid, field } = input.dataset;
             if (userid && field) {
                 callbacks.onOverrideChange(userid, field, input.value);
-                // Update card styling
                 const card = target.closest('.override-user-card');
                 if (card) {
                     const override = store.overrides[userid] || {};
@@ -246,7 +221,6 @@ export function bindEvents(callbacks: UICallbacks): () => void {
             }
         }
 
-        // Per-day override handler
         if (target.matches('input.per-day-input')) {
             const input = target as HTMLInputElement;
             const { userid, datekey, field } = input.dataset;
@@ -255,7 +229,6 @@ export function bindEvents(callbacks: UICallbacks): () => void {
             }
         }
 
-        // Weekly input handler
         if (target.matches('input.weekly-input')) {
             const input = target as HTMLInputElement;
             const { userid, weekday, field } = input.dataset;
@@ -265,64 +238,42 @@ export function bindEvents(callbacks: UICallbacks): () => void {
         }
     };
 
-    const overridesChangeHandler = (e: Event) => {
+    // Mode select handler
+    const changeHandler = (e: Event) => {
         const target = e.target as HTMLElement;
-
-        // Mode select dropdown handler
         if (target.matches('select.mode-select')) {
             const select = target as HTMLSelectElement;
             const { userid } = select.dataset;
             if (userid) {
                 callbacks.onOverrideModeChange(userid, select.value);
-                // Re-render the overrides page to show/hide expanded sections
                 renderOverridesPage();
             }
         }
     };
 
-    // Keyboard navigation for override cards (accessibility)
-    // Header has role="button" tabindex="0", so it must respond to Enter and Space
-    const overridesKeydownHandler = (e: Event) => {
+    // Keyboard navigation for card headers (Enter/Space)
+    const keydownHandler = (e: Event) => {
         const key = (e as KeyboardEvent).key;
         if (key === 'Enter' || key === ' ') {
             const target = e.target as HTMLElement;
             const header = target.closest('.override-user-header');
             if (header) {
-                e.preventDefault(); // Prevent scroll on Space
-                const card = header.closest('.override-user-card');
-                if (card) {
-                    card.classList.toggle('collapsed');
-                    const isExpanded = !card.classList.contains('collapsed');
-                    header.setAttribute('aria-expanded', String(isExpanded));
-                    const toggleIcon = header.querySelector('.toggle-icon');
-                    if (toggleIcon) {
-                        toggleIcon.innerHTML = isExpanded ? '&#9660;' : '&#9654;';
-                    }
-                }
+                e.preventDefault();
+                toggleCardCollapse(header);
             }
         }
     };
 
-    const overridesClickHandler = (e: MouseEvent) => {
+    // Card click delegation (collapse toggle, copy buttons)
+    const clickHandler = (e: MouseEvent) => {
         const target = e.target as HTMLElement;
 
-        // Toggle collapsed state when clicking header
         const header = target.closest('.override-user-header');
         if (header) {
-            const card = header.closest('.override-user-card');
-            if (card) {
-                card.classList.toggle('collapsed');
-                const isExpanded = !card.classList.contains('collapsed');
-                header.setAttribute('aria-expanded', String(isExpanded));
-                const toggleIcon = header.querySelector('.toggle-icon');
-                if (toggleIcon) {
-                    toggleIcon.innerHTML = isExpanded ? '&#9660;' : '&#9654;';
-                }
-            }
+            toggleCardCollapse(header);
             return;
         }
 
-        // Copy from global button (per-day mode)
         if (target.matches('button.copy-from-global-btn')) {
             const { userid } = target.dataset;
             if (userid) {
@@ -331,7 +282,6 @@ export function bindEvents(callbacks: UICallbacks): () => void {
             }
         }
 
-        // Copy global to weekly button (weekly mode)
         if (target.matches('button.copy-global-to-weekly-btn')) {
             const { userid } = target.dataset;
             if (userid) {
@@ -341,49 +291,111 @@ export function bindEvents(callbacks: UICallbacks): () => void {
         }
     };
 
-    if (Elements.overridesUserList) {
-        Elements.overridesUserList.addEventListener('input', overridesInputHandler);
-        Elements.overridesUserList.addEventListener('change', overridesChangeHandler);
-        Elements.overridesUserList.addEventListener('keydown', overridesKeydownHandler);
-        Elements.overridesUserList.addEventListener('click', overridesClickHandler);
+    if (overridesUserList) {
+        overridesUserList.addEventListener('input', inputHandler);
+        overridesUserList.addEventListener('change', changeHandler);
+        overridesUserList.addEventListener('keydown', keydownHandler);
+        overridesUserList.addEventListener('click', clickHandler);
+        cleanups.push(() => {
+            overridesUserList.removeEventListener('input', inputHandler);
+            overridesUserList.removeEventListener('change', changeHandler);
+            overridesUserList.removeEventListener('keydown', keydownHandler);
+            overridesUserList.removeEventListener('click', clickHandler);
+        });
     }
 
-    // Return cleanup function that removes all event listeners (UX-3: includes keydown)
-    return () => {
-        document.removeEventListener('keydown', escapeKeyHandler);
-        if (filterChipContainer) {
-            filterChipContainer.removeEventListener('keydown', filterChipKeyHandler);
-        }
-        if (overridesPaginationContainer) {
-            overridesPaginationContainer.removeEventListener('click', overridesPaginationHandler);
-        }
-        if (overridesSearchContainer) {
-            overridesSearchContainer.removeEventListener('input', overridesSearchHandler);
-        }
-        if (overridesSearchTimer) clearTimeout(overridesSearchTimer);
-        if (Elements.overridesUserList) {
-            Elements.overridesUserList.removeEventListener('wheel', wheelHandler, { passive: false } as EventListenerOptions);
-        }
-        if (detailedContainer) {
-            detailedContainer.removeEventListener('wheel', wheelHandler, { passive: false } as EventListenerOptions);
-        }
-        if (detailedContainer) {
-            detailedContainer.removeEventListener('click', detailedClickHandler);
-        }
-        if (generateBtn) {
-            generateBtn.removeEventListener('click', generateClickHandler);
-        }
-        if (Elements.openOverridesBtn) {
-            Elements.openOverridesBtn.removeEventListener('click', openOverridesClickHandler);
-        }
-        if (Elements.closeOverridesBtn) {
-            Elements.closeOverridesBtn.removeEventListener('click', closeOverridesClickHandler);
-        }
-        if (Elements.overridesUserList) {
-            Elements.overridesUserList.removeEventListener('input', overridesInputHandler);
-            Elements.overridesUserList.removeEventListener('change', overridesChangeHandler);
-            Elements.overridesUserList.removeEventListener('keydown', overridesKeydownHandler);
-            Elements.overridesUserList.removeEventListener('click', overridesClickHandler);
+    // Open/close overrides page buttons
+    const openHandler = () => showOverridesPage();
+    const closeHandler = () => {
+        hideOverridesPage();
+        if (store.analysisResults) callbacks.onGenerate();
+    };
+    const openBtn = Elements.openOverridesBtn;
+    const closeBtn = Elements.closeOverridesBtn;
+    if (openBtn) {
+        openBtn.addEventListener('click', openHandler);
+        cleanups.push(() => openBtn.removeEventListener('click', openHandler));
+    }
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeHandler);
+        cleanups.push(() => closeBtn.removeEventListener('click', closeHandler));
+    }
+
+    return () => cleanups.forEach(fn => fn());
+}
+
+/** Bind keyboard accessibility events (Escape, arrow keys). Returns cleanup. */
+function bindKeyboardAccessibility(detailedContainer: HTMLElement | null): () => void {
+    const cleanups: (() => void)[] = [];
+
+    // Close popover on Escape
+    const escapeHandler = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && detailedContainer) {
+            const openPopover = detailedContainer.querySelector('.status-info-popover:not(.hidden)');
+            if (openPopover) {
+                openPopover.classList.add('hidden');
+            }
         }
     };
+    document.addEventListener('keydown', escapeHandler);
+    cleanups.push(() => document.removeEventListener('keydown', escapeHandler));
+
+    // Arrow key navigation for filter chips (radiogroup pattern)
+    const filterChipContainer = document.getElementById('detailedFilters');
+    if (filterChipContainer) {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            const chips = Array.from(filterChipContainer.querySelectorAll<HTMLElement>('.chip'));
+            if (chips.length === 0) return;
+            const currentIndex = chips.indexOf(e.target as HTMLElement);
+            if (currentIndex === -1) return;
+            e.preventDefault();
+            const nextIndex = e.key === 'ArrowRight'
+                ? (currentIndex + 1) % chips.length
+                : (currentIndex - 1 + chips.length) % chips.length;
+            chips[nextIndex].focus();
+            chips[nextIndex].click();
+        };
+        filterChipContainer.addEventListener('keydown', handler);
+        cleanups.push(() => filterChipContainer.removeEventListener('keydown', handler));
+    }
+
+    return () => cleanups.forEach(fn => fn());
+}
+
+/**
+ * Binds global UI events (scrolling, inputs, buttons).
+ * Uses delegation for dynamic elements like pagination.
+ *
+ * @param callbacks - Callback functions for actions (onGenerate, onOverrideChange).
+ */
+export function bindEvents(callbacks: UICallbacks): () => void {
+    const Elements = getElements();
+    const wheelHandler = createWheelHandler();
+    const detailedContainer = document.getElementById('detailedTableContainer');
+    const cleanups: (() => void)[] = [];
+
+    // Detailed table events (pagination, popover)
+    if (detailedContainer) {
+        cleanups.push(bindDetailedTableEvents(detailedContainer, wheelHandler));
+    }
+
+    // Summary pagination
+    cleanups.push(bindSummaryPagination());
+
+    // Overrides panel (pagination, search, inputs, cards, open/close)
+    cleanups.push(bindOverridesEvents(callbacks, Elements, wheelHandler));
+
+    // Keyboard accessibility (Escape, arrow keys)
+    cleanups.push(bindKeyboardAccessibility(detailedContainer));
+
+    // Generate button
+    const generateBtn = document.getElementById('generateBtn');
+    if (generateBtn) {
+        const handler = () => callbacks.onGenerate();
+        generateBtn.addEventListener('click', handler);
+        cleanups.push(() => generateBtn.removeEventListener('click', handler));
+    }
+
+    return () => cleanups.forEach(fn => fn());
 }
