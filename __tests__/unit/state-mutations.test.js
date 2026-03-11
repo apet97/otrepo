@@ -939,4 +939,56 @@ describe('State Mutation Tests', () => {
       });
     });
   });
+
+  describe('Version counters for worker cache invalidation', () => {
+    beforeEach(() => {
+      store.overridesVersion = 0;
+      store.configVersion = 0;
+      store.overrides = {};
+    });
+
+    it('bumps overridesVersion on updateOverride', () => {
+      const before = store.overridesVersion;
+      store.updateOverride('u1', 'capacity', 6);
+      expect(store.overridesVersion).toBe(before + 1);
+    });
+
+    it('bumps overridesVersion on setOverrideMode', () => {
+      const before = store.overridesVersion;
+      store.setOverrideMode('u1', 'weekly');
+      expect(store.overridesVersion).toBe(before + 1);
+    });
+
+    it('bumps overridesVersion on updatePerDayOverride', () => {
+      const before = store.overridesVersion;
+      store.updatePerDayOverride('u1', '2024-01-15', 'capacity', 6);
+      expect(store.overridesVersion).toBe(before + 1);
+    });
+
+    it('bumps overridesVersion on setWeeklyOverride', () => {
+      const before = store.overridesVersion;
+      store.setWeeklyOverride('u1', 'MONDAY', 'capacity', 6);
+      expect(store.overridesVersion).toBe(before + 1);
+    });
+
+    it('bumps overridesVersion on copyGlobalToPerDay', () => {
+      store.overrides['u1'] = { mode: 'perDay', capacity: 8, perDayOverrides: {} };
+      const before = store.overridesVersion;
+      store.copyGlobalToPerDay('u1', ['2024-01-15']);
+      expect(store.overridesVersion).toBe(before + 1);
+    });
+
+    it('bumps overridesVersion on copyGlobalToWeekly', () => {
+      store.overrides['u1'] = { mode: 'weekly', capacity: 8, weeklyOverrides: {} };
+      const before = store.overridesVersion;
+      store.copyGlobalToWeekly('u1');
+      expect(store.overridesVersion).toBe(before + 1);
+    });
+
+    it('bumps configVersion on saveConfig', () => {
+      const before = store.configVersion;
+      store.saveConfig();
+      expect(store.configVersion).toBe(before + 1);
+    });
+  });
 });

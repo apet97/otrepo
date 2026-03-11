@@ -24,6 +24,7 @@ import {
     base64urlDecode,
     setCanonicalTimeZone,
     isValidTimeZone,
+    debounce,
 } from './utils.js';
 import { initErrorReporting, reportError } from './error-reporting.js';
 import { SENTRY_DSN } from './constants.js';
@@ -584,13 +585,19 @@ export async function loadInitialData(): Promise<void> {
     // This includes date pickers, config toggles, export button, etc.
     bindConfigEvents(handleGenerateReport);
 
+    // Debounced recalculation for override edits — prevents recalculating on
+    // every keystroke while the user is still typing in override fields.
+    const debouncedOverrideRecalc = debounce(() => {
+        if (store.rawEntries) runCalculation();
+    }, 250);
+
     // Bind event listeners for report generation, overrides, filters, and other interactive elements
     // These handlers are triggered when the user interacts with the UI
     UI.bindEvents({
         onGenerate: handleGenerateReport,
         onOverrideChange: (userId: string, field: string, value: string) => {
             store.updateOverride(userId, field, value);
-            if (store.rawEntries) runCalculation();
+            debouncedOverrideRecalc();
         },
         onOverrideModeChange: (userId: string, mode: string) => {
             store.setOverrideMode(userId, mode);
@@ -604,7 +611,7 @@ export async function loadInitialData(): Promise<void> {
             value: string
         ) => {
             store.updatePerDayOverride(userId, dateKey, field, value);
-            if (store.rawEntries) runCalculation();
+            debouncedOverrideRecalc();
         },
         onCopyFromGlobal: (userId: string) => {
             const startInput = document.getElementById('startDate') as HTMLInputElement | null;
@@ -623,7 +630,7 @@ export async function loadInitialData(): Promise<void> {
             value: string
         ) => {
             store.setWeeklyOverride(userId, weekday, field, value);
-            if (store.rawEntries) runCalculation();
+            debouncedOverrideRecalc();
         },
         onCopyGlobalToWeekly: (userId: string) => {
             store.copyGlobalToWeekly(userId);

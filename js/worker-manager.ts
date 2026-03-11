@@ -78,17 +78,22 @@ interface WorkerStoreSnapshot {
     calcParams: CalculationParams;
 }
 let _workerStoreCache: WorkerStoreSnapshot | null = null;
-let _workerStoreCacheRefs: { users: unknown; profiles: unknown; holidays: unknown; timeOff: unknown; overrides: unknown; config: unknown; calcParams: unknown } | null = null;
+let _workerStoreCacheKeys: {
+    users: unknown; profiles: unknown; holidays: unknown; timeOff: unknown;
+    overridesVersion: number; configVersion: number;
+} | null = null;
 
-function serializeStoreForWorker() {
-    if (_workerStoreCache && _workerStoreCacheRefs &&
-        _workerStoreCacheRefs.users === store.users &&
-        _workerStoreCacheRefs.profiles === store.profiles &&
-        _workerStoreCacheRefs.holidays === store.holidays &&
-        _workerStoreCacheRefs.timeOff === store.timeOff &&
-        _workerStoreCacheRefs.overrides === store.overrides &&
-        _workerStoreCacheRefs.config === store.config &&
-        _workerStoreCacheRefs.calcParams === store.calcParams) {
+/** @internal Exported for testing only. */
+export function serializeStoreForWorker() {
+    // Use version counters for overrides/config/calcParams instead of reference
+    // equality, because these objects are mutated in place by store methods.
+    if (_workerStoreCache && _workerStoreCacheKeys &&
+        _workerStoreCacheKeys.users === store.users &&
+        _workerStoreCacheKeys.profiles === store.profiles &&
+        _workerStoreCacheKeys.holidays === store.holidays &&
+        _workerStoreCacheKeys.timeOff === store.timeOff &&
+        _workerStoreCacheKeys.overridesVersion === store.overridesVersion &&
+        _workerStoreCacheKeys.configVersion === store.configVersion) {
         return _workerStoreCache;
     }
 
@@ -107,14 +112,13 @@ function serializeStoreForWorker() {
         config: store.config,
         calcParams: store.calcParams,
     };
-    _workerStoreCacheRefs = {
+    _workerStoreCacheKeys = {
         users: store.users,
         profiles: store.profiles,
         holidays: store.holidays,
         timeOff: store.timeOff,
-        overrides: store.overrides,
-        config: store.config,
-        calcParams: store.calcParams,
+        overridesVersion: store.overridesVersion,
+        configVersion: store.configVersion,
     };
     return _workerStoreCache;
 }

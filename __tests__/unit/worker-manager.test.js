@@ -52,6 +52,8 @@ const mockStore = {
     config: {},
     calcParams: { dailyThreshold: 8 },
     diagnostics: {},
+    overridesVersion: 0,
+    configVersion: 0,
 };
 
 jest.unstable_mockModule('../../js/state.js', () => ({
@@ -213,6 +215,65 @@ describe('Worker Manager Module', () => {
 
             expect(mockStartTimer).toHaveBeenCalled();
             expect(mockIncrementCounter).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    describe('serializeStoreForWorker — cache invalidation', () => {
+        let serializeStoreForWorker;
+
+        beforeEach(async () => {
+            const module = await import('../../js/worker-manager.js');
+            serializeStoreForWorker = module.serializeStoreForWorker;
+            mockStore.overridesVersion = 0;
+            mockStore.configVersion = 0;
+        });
+
+        it('returns a new snapshot when overridesVersion changes (in-place mutation)', () => {
+            const snap1 = serializeStoreForWorker();
+            // Simulate in-place override mutation (same object reference)
+            mockStore.overrides['user1'] = { capacity: 6 };
+            mockStore.overridesVersion++;
+            const snap2 = serializeStoreForWorker();
+
+            expect(snap2).not.toBe(snap1);
+            expect(snap2.overrides['user1']).toEqual({ capacity: 6 });
+        });
+
+        it('returns cached snapshot when nothing changes', () => {
+            const snap1 = serializeStoreForWorker();
+            const snap2 = serializeStoreForWorker();
+            expect(snap2).toBe(snap1);
+        });
+
+        it('returns a new snapshot when configVersion changes (in-place mutation)', () => {
+            const snap1 = serializeStoreForWorker();
+            // Simulate in-place config mutation (same object reference)
+            mockStore.config.overtimeBasis = 'weekly';
+            mockStore.configVersion++;
+            const snap2 = serializeStoreForWorker();
+
+            expect(snap2).not.toBe(snap1);
+        });
+
+        it('returns a new snapshot when calcParams mutate via configVersion', () => {
+            const snap1 = serializeStoreForWorker();
+            mockStore.calcParams.dailyThreshold = 10;
+            mockStore.configVersion++;
+            const snap2 = serializeStoreForWorker();
+
+            expect(snap2).not.toBe(snap1);
+            expect(snap2.calcParams.dailyThreshold).toBe(10);
+        });
+
+        it('detects staleness even when overrides object reference is unchanged', () => {
+            serializeStoreForWorker(); // prime the cache
+            // Mutate the same overrides object in place (the original bug)
+            mockStore.overrides['u2'] = { multiplier: 2.0 };
+            // Without bumping version, cache would be stale — but we bump it
+            mockStore.overridesVersion++;
+            const snap = serializeStoreForWorker();
+
+            expect(snap.overrides['u2']).toEqual({ multiplier: 2.0 });
         });
     });
 });

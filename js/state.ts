@@ -378,6 +378,19 @@ class Store {
     overrides: Record<string, UserOverride> = {};
 
     /**
+     * Monotonic version counter for override/config mutations.
+     * Bumped on every in-place mutation so the worker cache can detect staleness
+     * without relying on object-identity checks (which fail for in-place mutations).
+     */
+    overridesVersion = 0;
+
+    /**
+     * Monotonic version counter for config/calcParams mutations.
+     * Bumped on every saveConfig() call so the worker cache can detect staleness.
+     */
+    configVersion = 0;
+
+    /**
      * API error tracking for partial failure reporting.
      */
     apiStatus: ApiStatus = {
@@ -605,6 +618,8 @@ class Store {
      * - Configuration change handlers in main.ts
      */
     saveConfig(): void {
+        // Bump version so worker cache detects in-place config/calcParams mutations
+        this.configVersion++;
         // Persist config and calcParams together for efficient load/save (with fallback support)
         const success = safeSetItem(
             'otplus_config',
@@ -1236,6 +1251,8 @@ class Store {
             (this.overrides[userId] as Record<string, unknown>)[field] = validation.value;
         }
 
+        // Bump version so worker cache detects the in-place mutation
+        this.overridesVersion++;
         // Persist to localStorage
         this.saveOverrides();
         return true;
@@ -1325,6 +1342,8 @@ class Store {
             this.overrides[userId].weeklyOverrides = {};
         }
 
+        // Bump version so worker cache detects the in-place mutation
+        this.overridesVersion++;
         // Persist the mode change
         this.saveOverrides();
         return true;
@@ -1381,6 +1400,7 @@ class Store {
             (perDayOverrides[dateKey] as Record<string, unknown>)[field] = validation.value;
         }
 
+        this.overridesVersion++;
         this.saveOverrides();
         return true;
     }
@@ -1469,6 +1489,7 @@ class Store {
             }
         });
 
+        this.overridesVersion++;
         this.saveOverrides();
         return true;
     }
@@ -1517,6 +1538,7 @@ class Store {
             (weeklyOverrides[weekday] as Record<string, unknown>)[field] = validation.value;
         }
 
+        this.overridesVersion++;
         this.saveOverrides();
         return true;
     }
@@ -1565,6 +1587,7 @@ class Store {
             }
         });
 
+        this.overridesVersion++;
         this.saveOverrides();
         return true;
     }
