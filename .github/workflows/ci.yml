@@ -61,7 +61,7 @@ jobs:
       - name: Worker tests
         run: npm --prefix worker ci && npm --prefix worker test
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage/
@@ -84,7 +84,7 @@ jobs:
       - run: npm ci
       - run: npm run build:prod
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -132,7 +132,7 @@ jobs:
       - name: Run E2E tests
         run: npx playwright test --project=chromium
       - name: Upload test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
@@ -169,7 +169,7 @@ jobs:
           cd dist
           zip -r ../otplus-v${{ steps.version.outputs.version }}.zip .
       - name: Upload release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: otplus-v${{ steps.version.outputs.version }}
           path: otplus-v${{ steps.version.outputs.version }}.zip
