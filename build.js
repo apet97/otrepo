@@ -115,13 +115,21 @@ async function build() {
                 }));
             },
         }],
+        // Compile-time constant replacements — esbuild replaces these literal
+        // expressions with their JSON-stringified values throughout the bundle,
+        // enabling dead-code elimination (e.g. `if (process.env.NODE_ENV !== 'production')`)
         define: {
+            // App version string, sourced from package.json
             'process.env.VERSION': JSON.stringify(VERSION),
+            // Build mode: enables dead-code elimination of dev-only paths in production
             'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
+            // Sentry error-reporting DSN; empty string disables Sentry in local builds
             'process.env.SENTRY_DSN': JSON.stringify(process.env.SENTRY_DSN || ''),
         },
+        // Banner prepended to the bundle output. Uses SOURCE_DATE_EPOCH (Unix timestamp)
+        // when set, so CI/CD produces byte-identical builds regardless of wall-clock time
+        // (reproducible builds per https://reproducible-builds.org/specs/source-date-epoch/)
         banner: {
-            // Use SOURCE_DATE_EPOCH for reproducible builds if set, otherwise current time
             js: `// OTPLUS v${VERSION} - Built ${process.env.SOURCE_DATE_EPOCH ? new Date(parseInt(process.env.SOURCE_DATE_EPOCH, 10) * 1000).toISOString() : new Date().toISOString()}\n`,
         },
         logLevel: 'info',
@@ -134,6 +142,9 @@ async function build() {
             entryPoints: [workerPath],
             bundle: true,
             outfile: 'dist/js/calc.worker.js',
+            // Workers use IIFE format (not ESM) because `new Worker(url)` defaults to
+            // classic script mode; ESM workers require `{ type: 'module' }` which has
+            // limited browser support and complicates the worker-manager bootstrap
             format: 'iife',
             platform: 'browser',
             target: ['es2020'],
@@ -152,10 +163,14 @@ async function build() {
         await context.watch();
         console.log('Watching for changes...');
     } else {
-        // Single build with metafile for bundle analysis
+        // Single build with metafile enabled so esbuild records input/output
+        // byte sizes for every module in the bundle graph
         const result = await esbuild.build({ ...buildOptions, metafile: true });
         if (isProduction && result.metafile) {
+            // Write raw metafile JSON to dist/ for offline analysis tools
+            // (e.g. https://esbuild.github.io/analyze/ or bundle-buddy)
             fs.writeFileSync('dist/meta.json', JSON.stringify(result.metafile));
+            // Print a human-readable summary of the largest inputs to stdout
             const text = await esbuild.analyzeMetafile(result.metafile, { verbose: false });
             console.log('\nBundle analysis:\n' + text);
         }

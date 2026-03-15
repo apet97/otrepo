@@ -1,9 +1,16 @@
 <!DOCTYPE html>
+<!-- OTPLUS — Clockify Sidebar Addon. Main HTML template rendered inside Clockify's
+     sidebar iframe. Provides overtime reporting UI with summary/detailed views,
+     configuration panel, and override management. -->
 <html lang="en">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Content Security Policy: allows scripts and workers only from the same origin;
+       styles from self, inline, Clockify UI kit, and Google Fonts; fonts from Google;
+       images from self and data: URIs; API connections to Clockify backends and Sentry
+       for error reporting. All other sources are blocked by default-src 'self'. -->
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self';
              script-src 'self';
@@ -15,9 +22,13 @@
   <meta name="description"
     content="OTPLUS - Advanced overtime analysis addon for Clockify with profile-based capacity tracking, holiday integration, and billable hour breakdowns.">
   <title>OTPLUS — Overtime Summary</title>
+  <!-- Preconnect: establish early connections to external origins for faster resource loading -->
   <link rel="preconnect" href="https://resources.developer.clockify.me">
+  <!-- Clockify UI Kit: provides baseline component styles matching Clockify's native look -->
   <link rel="stylesheet" href="https://resources.developer.clockify.me/ui/latest/css/main.min.css" />
+  <!-- Google Fonts: Roboto typeface used as the primary font family throughout the addon -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <!-- Local styles: OTPLUS-specific theme variables, layout, components, and responsive rules -->
   <link rel="stylesheet" href="css/styles.css">
 </head>
 
@@ -27,7 +38,11 @@
     <!-- Main View (report interface) -->
     <div id="mainView">
 
-    <!-- Report Header -->
+    <!-- ============================================================
+         Report Header: app title, date range pickers, quick-range
+         preset chips (This Week, Last Month, etc.), and action
+         buttons (Generate, Refresh, Export CSV).
+         ============================================================ -->
     <section class="card filter-bar-compact">
       <div class="report-header-layout">
         <!-- Title -->
@@ -66,7 +81,13 @@
       </div>
     </section>
 
-    <!-- Settings Bar -->
+    <!-- ============================================================
+         Configuration Panel: collapsible settings section with
+         feature toggles (Profile Capacity, Working Days, Holidays,
+         Time Off, Billable Breakdown) and numeric calculation
+         parameters (daily/weekly thresholds, OT basis, multipliers,
+         tiered OT, amount display mode, decimal time).
+         ============================================================ -->
     <section class="card" style="padding: 8px 12px;">
       <div class="settings-bar-layout">
         <div class="settings-bar-left">
@@ -155,11 +176,20 @@
       </div>
     </section>
 
+    <!-- ============================================================
+         Status Banners: contextual alerts shown above report content.
+         - API Status Banner: displays API errors (auth failures, 429s, 5xx).
+         - Throttle Status Banner: separate from API errors so both can
+           appear simultaneously (e.g., rate-limit warning during retries).
+         - Pagination Warning Banner: warns when results exceed the
+           pagination limit and data may be incomplete.
+         All banners are hidden by default; JS toggles visibility.
+         ============================================================ -->
     <!-- API Status Banner -->
     <div id="apiStatusBanner" data-testid="api-status-banner" class="card hidden api-status-banner" role="alert" aria-live="polite" aria-atomic="true">
     </div>
 
-    <!-- UX-6: Throttle/Status Banner (separate from error banner so both can show simultaneously) -->
+    <!-- Throttle/Status Banner (separate from error banner so both can show simultaneously) -->
     <div id="throttleStatusBanner" data-testid="throttle-status-banner" class="card hidden api-status-banner" role="status" aria-live="polite">
     </div>
 
@@ -168,14 +198,27 @@
       <strong>Results may be incomplete.</strong> The data exceeded the pagination limit. Narrow your date range for complete results.
     </div>
 
-    <!-- Loading -->
+    <!-- ============================================================
+         Loading Skeleton: placeholder shimmer bars displayed while
+         the report is being generated. Hidden once data renders.
+         ============================================================ -->
     <div id="loadingState" class="hidden" role="status" aria-live="polite" aria-label="Loading report data">
       <div class="skeleton" aria-hidden="true"></div>
       <div class="skeleton" aria-hidden="true"></div>
     </div>
 
-    <!-- Results Container -->
-    <!-- Hidden by default; JS toggles visibility once report data has been rendered -->
+    <!-- ============================================================
+         Results Container: holds all report output, hidden by default.
+         JS toggles visibility once report data has been rendered.
+         Contains three sub-regions:
+           1. Summary Strip — KPI bar, secondary stats, financial cards
+              (all rendered dynamically by JS into #summaryStrip).
+           2. Tab Navigation — Summary vs. Detailed view switcher,
+              group-by selector, and expand/collapse toggle.
+           3. Data Tables — Summary table (aggregated by user/project/
+              client/etc.) and Detailed table (per-entry with filters
+              for holidays, off-days, time off, breaks, overtime, billable).
+         ============================================================ -->
     <div id="resultsContainer" data-testid="results-container" class="hidden" aria-live="polite">
 
       <!-- Summary Strip — KPI cards, secondary stats, financial cards rendered by JS -->
@@ -235,6 +278,10 @@
       </section>
     </div>
 
+    <!-- ============================================================
+         Empty State: shown when the generated report returns no
+         time entries for the selected date range.
+         ============================================================ -->
     <div id="emptyState" data-testid="empty-state" class="card empty-state">
       <h2 class="empty-state-title">No data for selected period</h2>
       <p class="empty-state-hint">Adjust the date range or calculation settings and generate the report.</p>
@@ -242,7 +289,13 @@
 
     </div><!-- End mainView -->
 
-    <!-- Overrides Page (full-page settings view) -->
+    <!-- ============================================================
+         Overrides Page: full-page view for per-user override
+         configuration (capacity, OT multiplier, per-day/weekly
+         schedules). Replaces the main report view when opened;
+         hidden by default. Includes a search bar, paginated user
+         card list, and back-navigation to the report.
+         ============================================================ -->
     <div id="overridesPage" class="hidden">
       <div class="card overrides-page-header">
         <button class="btn-text" id="closeOverridesBtn">&#8592; Back to Report</button>
@@ -258,7 +311,8 @@
 
   </div>
 
-  <!-- Entry Point -->
+  <!-- Entry Point: references the esbuild-bundled output. The build step
+       rewrites the src path to the hashed production bundle filename. -->
   <script type="module" src="js/main.js?v=17"></script>
 </body>
 

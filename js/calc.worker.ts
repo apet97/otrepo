@@ -38,7 +38,8 @@ interface WorkerPoolMessage {
     };
 }
 
-// Web Worker context
+// `self` in a Web Worker context is `DedicatedWorkerGlobalScope`; cast to
+// `Worker` for `postMessage` type compatibility.
 const ctx: Worker = self as unknown as Worker;
 
 /**
@@ -51,7 +52,8 @@ ctx.onmessage = (event: MessageEvent<WorkerPoolMessage>) => {
     try {
         const { entries, dateRange, store } = payload;
 
-        // Reconstruct Maps from serialized arrays
+        // The structured clone algorithm (used by postMessage) cannot serialize
+        // Maps, so they are transmitted as arrays and reconstructed here.
         const profiles = new Map(store.profiles);
         const holidays = new Map(store.holidays.map(([userId, hols]) => [userId, new Map(hols)]));
         const timeOff = new Map(store.timeOff.map(([userId, tos]) => [userId, new Map(tos)]));
@@ -70,7 +72,8 @@ ctx.onmessage = (event: MessageEvent<WorkerPoolMessage>) => {
         // Run calculation
         const results = calculateAnalysis(entries, calcStore, dateRange);
 
-        // Serialize results (Maps need to be converted to arrays for transfer)
+        // Maps are converted back to arrays before posting results since
+        // structured clone cannot handle Maps.
         const serializedResults = results.map((user) => ({
             ...user,
             days: Array.from(user.days.entries()),

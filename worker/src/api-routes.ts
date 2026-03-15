@@ -1,15 +1,51 @@
+/**
+ * @fileoverview CRUD endpoints for workspace configuration and user overrides.
+ *
+ * All endpoints require RSA256-verified JWT for authentication.  Write
+ * operations (`PUT`) additionally require workspace-admin role, verified via
+ * an outbound Clockify API call.
+ *
+ * Data is stored in Cloudflare KV with workspace-scoped keys:
+ * - `ws:{workspaceId}:config`    — {@link WorkspaceConfig}
+ * - `ws:{workspaceId}:overrides` — {@link WorkspaceOverrides}
+ */
+
 import type { Env, WorkspaceConfig, WorkspaceOverrides } from './types';
 import { extractAndVerifyJwt, isWorkspaceAdmin, jsonResponse, errorResponse } from './auth';
 
 // --- Runtime validation type guards ---
 
+/** Valid values for the `OvertimeConfig.amountDisplay` enum field. */
 const VALID_AMOUNT_DISPLAYS = ['earned', 'cost', 'profit'] as const;
+
+/** Valid values for the `OvertimeConfig.overtimeBasis` enum field. */
 const VALID_OVERTIME_BASES = ['daily', 'weekly', 'both'] as const;
 
+/**
+ * Type guard that checks whether a value is a plain object (non-null,
+ * non-array).
+ *
+ * Used as the first check in all validation functions to ensure the
+ * value is structurally an object before accessing properties.
+ *
+ * @param v - The value to check.
+ * @returns `true` if `v` is a non-null, non-array object.
+ */
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+/**
+ * Validates that a value conforms to the {@link OvertimeConfig} shape.
+ *
+ * Checks all 9 required fields:
+ * - 7 boolean feature flags.
+ * - `amountDisplay` enum (`earned` | `cost` | `profit`).
+ * - `overtimeBasis` enum (`daily` | `weekly` | `both`).
+ *
+ * @param v - The value to validate (typically from a parsed JSON body).
+ * @returns `true` if the value has valid OvertimeConfig structure.
+ */
 function isValidOvertimeConfig(v: unknown): boolean {
   if (!isRecord(v)) return false;
   const boolFields = [
@@ -24,6 +60,21 @@ function isValidOvertimeConfig(v: unknown): boolean {
   return true;
 }
 
+/**
+ * Validates that a value conforms to the {@link CalculationParams} shape.
+ *
+ * Checks all 5 required numeric fields against their allowed ranges:
+ * - `dailyThreshold`: 0–24 hours
+ * - `weeklyThreshold`: 0–168 hours
+ * - `overtimeMultiplier`: 0–100
+ * - `tier2ThresholdHours`: 0–168 hours
+ * - `tier2Multiplier`: 0–100
+ *
+ * Rejects `NaN`, `Infinity`, and out-of-range values.
+ *
+ * @param v - The value to validate.
+ * @returns `true` if the value has valid CalculationParams structure.
+ */
 function isValidCalcParams(v: unknown): boolean {
   if (!isRecord(v)) return false;
   const ranges: Record<string, [number, number]> = {
@@ -40,7 +91,17 @@ function isValidCalcParams(v: unknown): boolean {
   return true;
 }
 
-/** Validates data read from KV matches WorkspaceConfig shape. */
+/**
+ * Validates that data retrieved from KV matches the {@link WorkspaceConfig}
+ * shape.
+ *
+ * Performs nested validation: the outer record must contain `config`
+ * (validated by `isValidOvertimeConfig`) and `calcParams` (validated by
+ * `isValidCalcParams`).
+ *
+ * @param data - Parsed JSON from KV.
+ * @returns `true` if `data` is a valid WorkspaceConfig.
+ */
 function isValidWorkspaceConfig(data: unknown): data is WorkspaceConfig {
   if (!isRecord(data)) return false;
   if (!isRecord(data.config) || !isRecord(data.calcParams)) return false;
@@ -49,16 +110,41 @@ function isValidWorkspaceConfig(data: unknown): data is WorkspaceConfig {
   return true;
 }
 
-/** Validates data read from KV matches WorkspaceOverrides shape. */
+/**
+ * Validates that data retrieved from KV matches the
+ * {@link WorkspaceOverrides} shape.
+ *
+ * Only checks the top-level structure (must have an `overrides` object).
+ * Individual user overrides are validated separately on write via
+ * `isValidUserOverride()`.
+ *
+ * @param data - Parsed JSON from KV.
+ * @returns `true` if `data` is a valid WorkspaceOverrides.
+ */
 function isValidWorkspaceOverrides(data: unknown): data is WorkspaceOverrides {
   if (!isRecord(data)) return false;
   if (!isRecord(data.overrides)) return false;
   return true;
 }
 
+/** Valid override scheduling modes. */
 const VALID_OVERRIDE_MODES = new Set(['global', 'weekly', 'perDay']);
+
+/** Numeric fields that can appear in per-user override objects. */
 const NUMERIC_OVERRIDE_FIELDS = ['capacity', 'multiplier', 'tier2Threshold', 'tier2Multiplier'] as const;
 
+/**
+ * Allowed numeric ranges for per-user override fields.
+ *
+ * These bounds are enforced server-side to prevent nonsensical values:
+ * - `capacity`: 0–24 hours (daily capacity cannot exceed a full day).
+ * - `multiplier`: 1–5 (overtime multiplier between 1x and 5x).
+ * - `tier2Threshold`: 0–24 hours (tier-2 OT threshold per day).
+ * - `tier2Multiplier`: 1–5 (tier-2 OT multiplier between 1x and 5x).
+ *
+ * The ranges are intentionally tighter than `CalculationParams` ranges
+ * because overrides are per-user adjustments, not workspace-wide defaults.
+ */
 const OVERRIDE_BOUNDS: Record<string, [number, number]> = {
   capacity: [0, 24],
   multiplier: [1, 5],
@@ -66,6 +152,16 @@ const OVERRIDE_BOUNDS: Record<string, [number, number]> = {
   tier2Multiplier: [1, 5],
 };
 
+/**
+ * Validates a single numeric override object against `OVERRIDE_BOUNDS`.
+ *
+ * Each numeric field is optional, but if present it must be a finite number
+ * within its allowed range.
+ *
+ * @param obj - The override object to validate (e.g. a top-level user
+ *              override or a single day entry within weeklyOverrides).
+ * @returns `true` if all present numeric fields are within bounds.
+ */
 function isValidNumericOverrideObject(obj: unknown): boolean {
   if (!isRecord(obj)) return false;
   for (const field of NUMERIC_OVERRIDE_FIELDS) {
@@ -78,6 +174,20 @@ function isValidNumericOverrideObject(obj: unknown): boolean {
   return true;
 }
 
+/**
+ * Validates a complete per-user override entry.
+ *
+ * A user override may include:
+ * - `mode`: one of `"global"`, `"weekly"`, or `"perDay"`.
+ * - Top-level numeric fields (capacity, multiplier, etc.).
+ * - `weeklyOverrides`: an object keyed by day name, each value validated
+ *   against `OVERRIDE_BOUNDS`.
+ * - `perDayOverrides`: an object keyed by ISO date, each value validated
+ *   against `OVERRIDE_BOUNDS`.
+ *
+ * @param override - The per-user override to validate.
+ * @returns `true` if the override structure and all numeric values are valid.
+ */
 function isValidUserOverride(override: unknown): boolean {
   if (!isRecord(override)) return false;
   if (override.mode !== undefined && !VALID_OVERRIDE_MODES.has(override.mode as string)) return false;
@@ -99,6 +209,19 @@ function isValidUserOverride(override: unknown): boolean {
 
 // --- Route handlers ---
 
+/**
+ * Handles `GET /api/config` — retrieves the workspace overtime
+ * configuration from KV.
+ *
+ * Authenticates the caller via RSA256-verified JWT (read access is allowed
+ * for any authenticated workspace member, not just admins).  Returns the
+ * full {@link WorkspaceConfig} if one exists, or `{ config: null }` if
+ * the workspace has no saved configuration yet.
+ *
+ * @param request - The incoming HTTP request (must contain a valid JWT).
+ * @param env     - Worker environment bindings.
+ * @returns JSON response with the workspace config or a 401/500 error.
+ */
 export async function handleConfigGet(request: Request, env: Env): Promise<Response> {
   let jwt;
   try {
@@ -132,6 +255,25 @@ export async function handleConfigGet(request: Request, env: Env): Promise<Respo
   return jsonResponse(parsed, 200, request, env.ENVIRONMENT);
 }
 
+/**
+ * Handles `PUT /api/config` — saves (creates or updates) the workspace
+ * overtime configuration in KV.
+ *
+ * Requires:
+ * 1. RSA256-verified JWT (authentication).
+ * 2. `backendUrl` claim in the JWT (needed for admin check).
+ * 3. WORKSPACE_ADMIN or OWNER role (authorization, checked via outbound
+ *    Clockify API call).
+ *
+ * The request body must include both `config` (validated by
+ * `isValidOvertimeConfig`) and `calcParams` (validated by
+ * `isValidCalcParams`).  The saved record includes `schemaVersion: 1`
+ * and an audit trail (`updatedAt`, `updatedBy`).
+ *
+ * @param request - The incoming HTTP request with JSON body.
+ * @param env     - Worker environment bindings.
+ * @returns JSON response `{ status: "saved" }` on success, or an error.
+ */
 export async function handleConfigPut(request: Request, env: Env): Promise<Response> {
   let jwt;
   try {
@@ -181,6 +323,18 @@ export async function handleConfigPut(request: Request, env: Env): Promise<Respo
   return jsonResponse({ status: 'saved' }, 200, request, env.ENVIRONMENT);
 }
 
+/**
+ * Handles `GET /api/overrides` — retrieves per-user overrides for the
+ * workspace from KV.
+ *
+ * Authenticates the caller via RSA256-verified JWT (read access is allowed
+ * for any authenticated workspace member).  Returns `{ overrides: {} }` if
+ * no overrides have been saved yet.
+ *
+ * @param request - The incoming HTTP request (must contain a valid JWT).
+ * @param env     - Worker environment bindings.
+ * @returns JSON response with the workspace overrides or a 401/500 error.
+ */
 export async function handleOverridesGet(request: Request, env: Env): Promise<Response> {
   let jwt;
   try {
@@ -214,6 +368,24 @@ export async function handleOverridesGet(request: Request, env: Env): Promise<Re
   return jsonResponse(parsed, 200, request, env.ENVIRONMENT);
 }
 
+/**
+ * Handles `PUT /api/overrides` — saves (creates or updates) per-user
+ * overrides for the workspace in KV.
+ *
+ * Requires:
+ * 1. RSA256-verified JWT (authentication).
+ * 2. `backendUrl` claim in the JWT (needed for admin check).
+ * 3. WORKSPACE_ADMIN or OWNER role (authorization).
+ *
+ * The request body must have an `overrides` object keyed by user ID.
+ * Each user override is validated by `isValidUserOverride()`, which
+ * enforces `OVERRIDE_BOUNDS` on all numeric fields.  The saved record
+ * includes `schemaVersion: 1` and an audit trail.
+ *
+ * @param request - The incoming HTTP request with JSON body.
+ * @param env     - Worker environment bindings.
+ * @returns JSON response `{ status: "saved" }` on success, or an error.
+ */
 export async function handleOverridesPut(request: Request, env: Env): Promise<Response> {
   let jwt;
   try {

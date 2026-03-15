@@ -1,4 +1,7 @@
 name: CI
+# CI pipeline for OTPLUS Clockify addon.
+# Runs security audit, linting, type checking, unit tests, build, E2E tests,
+# and deployment on push/PR to main branch.
 
 on:
   push:
@@ -7,11 +10,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Least-privilege principle: all jobs default to read-only repo access.
+# Individual jobs (e.g. deploy) escalate permissions only where needed.
 permissions:
   contents: read
 
 jobs:
   # ── Fast checks (parallel, no dependencies) ──────────────────────────
+  # security, quality, and test run in parallel because they are independent
+  # of each other. This minimizes total pipeline time by letting all three
+  # execute concurrently on separate runners.
+
   security:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -59,6 +68,9 @@ jobs:
           retention-days: 7
 
   # ── Build (needs quality + test to pass) ─────────────────────────────
+  # Build depends on quality and test so that we only produce artifacts
+  # after correctness has been verified. This gates downstream jobs
+  # (E2E, deploy) on a known-good codebase.
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -79,11 +91,15 @@ jobs:
           retention-days: 30
 
   # ── E2E (Chromium-only, uses pre-built dist) ─────────────────────────
+  # E2E downloads the dist/ artifact from the build job instead of
+  # rebuilding. This ensures E2E tests run against the exact same bundle
+  # that will be deployed, and avoids a redundant build step.
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: [build]
     env:
+      # Store Playwright browsers in a cacheable location outside node_modules.
       PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
     steps:
       - uses: actions/checkout@v4
@@ -92,6 +108,11 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
+      # Cache Playwright browser binaries to avoid re-downloading ~200MB on
+      # every run. The key is tied to package-lock.json so the cache is
+      # invalidated when Playwright's version (and therefore browser builds)
+      # changes. The restore-keys fallback allows reuse of older caches when
+      # only non-Playwright dependencies change.
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -101,6 +122,8 @@ jobs:
             playwright-${{ runner.os }}-
       - name: Install Playwright (Chromium only)
         run: npx playwright install --with-deps chromium
+      # Download the pre-built dist/ from the build job rather than
+      # rebuilding, guaranteeing E2E runs against the deployable bundle.
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
@@ -117,10 +140,18 @@ jobs:
           retention-days: 7
 
   # ── Release & Deploy ─────────────────────────────────────────────────
+  # Release and deploy jobs only run on pushes to main (not on PRs).
+  # This prevents deploying unmerged code while still running the full
+  # validation pipeline on pull requests.
+
   release:
     name: Create Release
     runs-on: ubuntu-latest
     needs: [build, e2e]
+    # Only create a release on main-branch pushes (not PRs), and only when
+    # the repository variable ENABLE_PAGES is set to 'true'. This variable
+    # acts as a manual toggle so maintainers can disable release creation
+    # without modifying the workflow file.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.ENABLE_PAGES == 'true'
     steps:
       - uses: actions/checkout@v4
@@ -148,6 +179,7 @@ jobs:
     name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
     needs: [build, e2e]
+    # Only deploy on main-branch pushes, not on PRs.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       pages: write
@@ -173,10 +205,16 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
+  # Deploy the Cloudflare Worker independently from GitHub Pages.
+  # The Worker serves as the backend (API proxy, KV-backed settings,
+  # lifecycle handlers) and has its own deployment target (Cloudflare),
+  # so it runs as a separate job rather than being bundled with the
+  # Pages deployment above.
   deploy-worker:
     name: Deploy Cloudflare Worker
     runs-on: ubuntu-latest
     needs: [build, e2e]
+    # Only deploy on main-branch pushes, not on PRs.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4

@@ -1,3 +1,58 @@
+/*
+ * OTPLUS Stylesheet
+ * =================
+ * Implements light/dark theme via CSS custom properties, responsive layout
+ * optimized for Clockify's 300-400px sidebar width, density modes
+ * (comfortable/compact), and all component styles.
+ *
+ * Table of Contents
+ * -----------------
+ *   1. CSS Custom Properties (Light Theme)       ~line 30
+ *   2. Admin Utility                             ~line 75
+ *   3. Base / Reset                              ~line 78
+ *   4. Container                                 ~line 93
+ *   5. Cards                                     ~line 103
+ *   6. Accent Outline Button                     ~line 118
+ *   7. Tab Buttons (underline style)             ~line 134
+ *   8. Badges (holiday, offday, timeoff, break)  ~line 158
+ *   9. User Avatar / Cell                        ~line 203
+ *  10. Dark Theme Overrides                      ~line 236
+ *  11. Density Modes (compact / spacious)        ~line 373
+ *  12. Card Title & Section Toggle               ~line 397
+ *  13. Settings Bar Layout                       ~line 448
+ *  14. Overrides Count Badge                     ~line 495
+ *  15. Buttons (primary / secondary / tertiary)  ~line 508
+ *  16. Report Header Layout                      ~line 608
+ *  17. Date Inputs & Quick-Range Chips           ~line 702
+ *  18. Summary Area (KPI bar, stats, financial)  ~line 764
+ *  19. Legacy Summary Item Support               ~line 932
+ *  20. Tables (report-table, detailed columns)   ~line 984
+ *  21. Status Info Popover                       ~line 1107
+ *  22. Amount Stack / Profit Mode Columns        ~line 1388
+ *  23. Table Row Striping & Emphasis             ~line 1454
+ *  24. Override Inputs                           ~line 1481
+ *  25. Utility Classes (hidden, visually-hidden) ~line 1497
+ *  26. Loading Skeleton Animation                ~line 1515
+ *  27. Configuration Panel Inputs                ~line 1537
+ *  28. API / Pagination Warning Banners          ~line 1581
+ *  29. Data Section (tabs + table wrapper)       ~line 1605
+ *  30. Tab Pills                                 ~line 1630
+ *  31. Empty State                               ~line 1677
+ *  32. Version Footer                            ~line 1699
+ *  33. Config Toggle Grid & Items                ~line 1707
+ *  34. Filter Chips (detailed view)              ~line 1724
+ *  35. Tooltips                                  ~line 1761
+ *  36. Responsive: 768px (tablet)                ~line 1772
+ *  37. Responsive: 640px (profit headers)        ~line 1858
+ *  38. Responsive: 480px (small phone)           ~line 1882
+ *  39. Per-Day Override Styles                   ~line 1923
+ *  40. Weekly Override Styles                    ~line 2017
+ *  41. Mode Select                               ~line 2085
+ *  42. Overrides Page Styles                     ~line 2101
+ *  43. Session Warning & Modal                   ~line 2328
+ *  44. Clockify Sidebar Responsive (450px)       ~line 2451
+ */
+
 :root {
   /* Background colors */
   --bg-page: #f8fafc;
@@ -183,7 +238,10 @@ body {
   color: var(--color-danger);
 }
 
-/* Avatar */
+/* ========================================
+   User Avatar & Cell — initials circle and inline
+   user name display used in summary/detailed tables
+   ======================================== */
 .user-avatar {
   display: inline-flex;
   align-items: center;
@@ -217,6 +275,10 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* ========================================
+   Dark Theme — overrides CSS custom properties when
+   Clockify applies the .cl-theme-dark class to <html>
+   ======================================== */
 .cl-theme-dark {
   /* Background colors - dark theme */
   --bg-page: #1a1a2e;
@@ -354,6 +416,10 @@ body {
   background: var(--bg-hover);
 }
 
+/* ========================================
+   Density Modes — compact (default) and spacious
+   Adjust padding, gaps, and sizing via custom properties
+   ======================================== */
 body.density-compact {
   --page-padding: 8px;
   --card-padding: 10px;
@@ -973,6 +1039,9 @@ body.density-spacious {
   padding-right: 12px;
 }
 
+/* table-layout: fixed forces columns to respect explicit width percentages
+   rather than auto-sizing to content, preventing layout thrashing on large
+   datasets and enabling predictable column alignment across rows. */
 .report-table {
   width: 100%;
   border-collapse: collapse;
@@ -1137,6 +1206,8 @@ body.density-spacious {
   color: var(--text-muted);
 }
 
+/* When billable breakdown is disabled, hide the billable filter chip
+   and the billable column (7th) from the detailed table entirely. */
 #detailedCard.billable-off .chip[data-filter="billable"] {
   display: none;
 }
@@ -1146,6 +1217,8 @@ body.density-spacious {
   display: none;
 }
 
+/* Table headers use position: sticky so they remain visible at the top
+   of the scrollable table container while the user scrolls through rows. */
 .report-table th {
   padding: var(--table-cell-padding);
   background: var(--bg-subtle);
@@ -1175,6 +1248,7 @@ body.density-spacious {
   border-bottom: 1px solid #f1f5f9;
   color: var(--text-primary);
   font-size: 14px;
+  /* tabular-nums ensures all digits are the same width so numeric columns align vertically */
   font-variant-numeric: tabular-nums;
 }
 
@@ -1496,9 +1570,12 @@ body.density-spacious {
   border: 0;
 }
 
+/* Skeleton loading placeholder: shimmer gradient slides left-to-right
+   to indicate content is loading. Used in the #loadingState container. */
 .skeleton {
   background: linear-gradient(90deg, var(--bg-subtle) 25%, var(--bg-hover) 50%, var(--bg-subtle) 75%);
   background-size: 200% 100%;
+  /* Animates the gradient position to create a continuous shimmer effect */
   animation: skeleton-loading 1.5s infinite;
   border-radius: 6px;
   height: 20px;
@@ -1508,6 +1585,7 @@ body.density-spacious {
   margin-top: 10px;
 }
 
+/* Skeleton shimmer: translates the oversized background from right to left */
 @keyframes skeleton-loading {
   0% {
     background-position: 200% 0;
@@ -1751,8 +1829,11 @@ body.density-spacious {
   text-decoration: underline dotted;
 }
 
-/* HIGH FIX #13: Mobile Responsive CSS */
-/* Responsive adjustments keep the layout usable on tablets and narrow desktops */
+/* ========================================
+   Responsive: Tablet & Narrow Desktop (max-width: 768px)
+   Stacks filters vertically, widens date inputs,
+   switches summary to list layout, and reduces table font.
+   ======================================== */
 @media (max-width: 768px) {
   body {
     padding: 12px;
@@ -1839,6 +1920,8 @@ body.density-spacious {
   }
 }
 
+/* Responsive: 640px — force profit-mode headers to wrap and use short
+   labels so stacked amount/cost/profit values remain readable. */
 @media (max-width: 640px) {
   #detailedCard.amount-profit .report-table th:nth-child(1),
   #detailedCard.amount-profit .report-table th:nth-child(2),
@@ -1863,8 +1946,11 @@ body.density-spacious {
   }
 }
 
+/* ========================================
+   Responsive: Small Phone (max-width: 480px)
+   Tightens spacing further for small phones and very narrow viewports.
+   ======================================== */
 @media (max-width: 480px) {
-/* Tighten spacing further for small phones and very narrow viewports */
   .report-table {
     min-width: 400px;
   }
@@ -1904,7 +1990,10 @@ body.density-spacious {
   }
 }
 
-/* --- Per-Day Override Styles --- */
+/* ========================================
+   Per-Day Override Styles — day-of-week capacity
+   and multiplier inputs within user override cards
+   ======================================== */
 
 /* Mode toggle button */
 .mode-toggle-btn {
@@ -1998,7 +2087,10 @@ body.density-spacious {
   border-color: var(--primary-color);
 }
 
-/* Weekly Overrides */
+/* ========================================
+   Weekly Override Styles — week-level capacity and
+   multiplier inputs within user override cards
+   ======================================== */
 .weekly-editor-row {
   background: var(--bg-tertiary);
 }
@@ -2086,7 +2178,8 @@ body.density-spacious {
    Overrides Page Styles
    ======================================== */
 
-/* Page animation */
+/* Page entrance animation: fades in and slides down slightly to give
+   the overrides page a smooth reveal when toggled from the report view. */
 #overridesPage {
   animation: fadeIn 0.2s ease-out;
 }
@@ -2313,7 +2406,8 @@ body.density-spacious {
    Session Warning Styles
    ======================================== */
 
-/* Session warning banner */
+/* Session warning banner — position: sticky keeps the warning pinned to the top
+   of the scrollable viewport so the user always sees the expiration notice. */
 .session-warning-banner {
   background: #fef3c7;
   border-color: #f59e0b;
@@ -2353,7 +2447,10 @@ body.density-spacious {
   white-space: nowrap;
 }
 
-/* Session expired modal overlay */
+/* ========================================
+   Session Expired Modal — full-screen overlay with
+   centered dialog shown when the JWT session expires
+   ======================================== */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -2432,7 +2529,9 @@ body.density-spacious {
   }
 }
 
-/* Clockify sidebar responsive (300-400px) */
+/* Clockify sidebar responsive (300-400px) — targets Clockify's narrow sidebar
+   viewport, which typically renders between 300px and 400px wide. Reduces
+   padding, font sizes, and forces single-column layouts to fit. */
 @media (max-width: 450px) {
   body { padding: 8px; }
   .container { max-width: 100%; padding: 0; }
