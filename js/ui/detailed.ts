@@ -1,0 +1,404 @@
+/**
+ * @fileoverview Detailed Table UI Module
+ * Handles rendering of detailed entries table with pagination and filtering.
+ */
+
+import { store } from '../state.js';
+import {
+    classifyEntryForOvertime,
+    IsoUtils,
+    getCanonicalTimeZone,
+    formatTimeHHmm,
+} from '../utils.js';
+import type { UserAnalysis } from '../types.js';
+import {
+    getCachedDetailedEntries,
+    invalidateDetailedCache as _invalidateDetailedCache,
+    type DetailedEntry,
+} from '../data-selectors.js';
+import {
+    formatHoursDisplay,
+    formatCurrency,
+    escapeHtml,
+    getAmountDisplayMode,
+    buildProfitStacks,
+} from './shared.js';
+
+// Re-export data-layer types and functions for backward compatibility with ui/index.ts consumers.
+export { getCachedDetailedEntries, type DetailedEntry } from '../data-selectors.js';
+
+/** Clear the detailed entries cache and filter subsets. */
+export function invalidateDetailedCache(): void {
+    _invalidateDetailedCache();
+    _cachedFilterSubsets = null;
+    _cachedFilterEntriesRef = null;
+}
+
+const NARROW_HEADER_WIDTH = 900;
+let detailedHeaderObserver: ResizeObserver | null = null;
+let observedDetailedCard: HTMLElement | null = null;
+
+// === Filter subset cache (UI-specific, built on top of data-layer cache) ===
+let _cachedFilterSubsets: Map<string, DetailedEntry[]> | null = null;
+let _cachedFilterEntriesRef: DetailedEntry[] | null = null;
+
+function getCachedFilterSubset(users: UserAnalysis[], filter: string): DetailedEntry[] {
+    const allEntries = getCachedDetailedEntries(users);
+    if (_cachedFilterSubsets === null || _cachedFilterEntriesRef !== allEntries) {
+        _cachedFilterSubsets = new Map();
+        _cachedFilterEntriesRef = allEntries;
+        _cachedFilterSubsets.set('all', allEntries);
+        _cachedFilterSubsets.set(
+            'holiday',
+            allEntries.filter((e) => e.dayMeta.isHoliday)
+        );
+        _cachedFilterSubsets.set(
+            'offday',
+            allEntries.filter((e) => e.dayMeta.isNonWorking)
+        );
+        _cachedFilterSubsets.set(
+            'timeoff',
+            allEntries.filter((e) => e.dayMeta.isTimeOff)
+        );
+        _cachedFilterSubsets.set(
+            'break',
+            allEntries.filter((e) => classifyEntryForOvertime(e) === 'break')
+        );
+        _cachedFilterSubsets.set(
+            'overtime',
+            allEntries.filter((e) => (e.analysis?.overtime ?? 0) > 0)
+        );
+        _cachedFilterSubsets.set(
+            'billable',
+            allEntries.filter((e) => e.analysis?.isBillable)
+        );
+    }
+    return _cachedFilterSubsets.get(filter) || allEntries;
+}
+
+/**
+ * Updates the detailed table header layout based on container width.
+ * Switches to compact headers in profit mode when the container is narrow
+ * or when header cells overflow their bounds.
+ *
+ * @param card - The detailed card container element.
+ */
+function updateDetailedHeaderLayout(card: HTMLElement): void {
+    const isProfitMode = card.classList.contains('amount-profit');
+    const width = card.getBoundingClientRect().width;
+    let useCompactHeaders = isProfitMode && width < NARROW_HEADER_WIDTH;
+    if (isProfitMode) {
+        const table = card.querySelector('.report-table');
+        /* istanbul ignore if -- requires browser layout engine for scrollWidth/clientWidth */
+        if (table) {
+            const headerCells = Array.from(table.querySelectorAll('thead th')).slice(0, 7);
+            const hasOverflow = headerCells.some((cell) => cell.scrollWidth > cell.clientWidth + 1);
+            if (hasOverflow) {
+                useCompactHeaders = true;
+            }
+        }
+    }
+    card.classList.toggle('narrow-headers', useCompactHeaders);
+}
+
+/**
+ * Ensures a ResizeObserver is attached to the detailed card for responsive header updates.
+ * Creates the observer if it doesn't exist, and manages observation of the current card.
+ * When the card resizes, triggers header layout recalculation via updateDetailedHeaderLayout.
+ *
+ * RESPONSIVE HEADER PATTERN:
+ * The "Profit" view adds 3 columns per amount metric (Amt/Cost/Profit), making the table very wide.
+ * We use a ResizeObserver to detect when the container is too narrow for full headers,
+ * automatically switching to compact abbreviations (e.g., "Regular" -> "Reg") to preserve layout.
+ *
+ * @param card - The detailed card container element to observe.
+ */
+function ensureDetailedHeaderObserver(card: HTMLElement): void {
+    updateDetailedHeaderLayout(card);
+    /* istanbul ignore if -- ResizeObserver requires browser environment */
+    if (typeof ResizeObserver === 'undefined') return;
+    /* istanbul ignore next -- ResizeObserver callback requires browser environment */
+    if (!detailedHeaderObserver) {
+        detailedHeaderObserver = new ResizeObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.target instanceof HTMLElement) {
+                    updateDetailedHeaderLayout(entry.target);
+                }
+            });
+        });
+    }
+    if (observedDetailedCard !== card) {
+        if (observedDetailedCard) {
+            detailedHeaderObserver.unobserve(observedDetailedCard);
+        }
+        observedDetailedCard = card;
+        detailedHeaderObserver.observe(card);
+    }
+}
+
+/**
+ * Disconnects and cleans up the ResizeObserver for the detailed header.
+ */
+export function destroyDetailedObserver(): void {
+    if (detailedHeaderObserver) {
+        detailedHeaderObserver.disconnect();
+        detailedHeaderObserver = null;
+    }
+    observedDetailedCard = null;
+}
+
+/**
+ * Renders the Detailed Table (granular entries).
+ * Supports client-side filtering and pagination.
+ *
+ * @param users - List of user analysis objects.
+ * @param activeFilter - Filter key ('all', 'holiday', 'offday', 'billable').
+ */
+// eslint-disable-next-line complexity -- Table rendering with many columns, filters, and conditional formatting
+export function renderDetailedTable(
+    users: UserAnalysis[],
+    activeFilter: string | null = null
+): void {
+    const container = document.getElementById('detailedTableContainer');
+    if (!container) return;
+    const detailedCard = document.getElementById('detailedCard');
+    const showBillable = store.config.showBillableBreakdown && store.ui.hasAmountRates !== false;
+    const showAmounts = store.ui.hasAmountRates !== false;
+    const showTier2 = store.config.enableTieredOT && showAmounts;
+    const amountDisplay = showAmounts ? getAmountDisplayMode() : 'earned';
+    const isProfitMode = showAmounts && amountDisplay === 'profit';
+    // SAFE-INNERHTML(detailed-table): All HTML interpolations below must use escapeHtml
+    // for API-sourced strings or numeric formatters. Prefer DOM APIs if adding user content.
+    if (detailedCard) {
+        detailedCard.classList.toggle('billable-off', !showBillable);
+        detailedCard.classList.toggle('amount-profit', isProfitMode);
+    }
+
+    // Use stored filter if not provided, otherwise update store
+    if (activeFilter) {
+        store.ui.activeDetailedFilter = activeFilter as typeof store.ui.activeDetailedFilter;
+        store.ui.detailedPage = 1; // Reset to page 1 on filter change
+    }
+    let currentFilter = store.ui.activeDetailedFilter || 'all';
+    if (!showBillable && currentFilter === 'billable') {
+        currentFilter = 'all';
+        store.ui.activeDetailedFilter = 'all';
+    }
+
+    // Use cached flattened+sorted entries with pre-computed filter subsets
+    const allEntries = getCachedFilterSubset(users, currentFilter);
+
+    // Update Chips UI
+    document.querySelectorAll('#detailedFilters .chip').forEach((chip) => {
+        const el = chip as HTMLElement;
+        const isActive = el.dataset.filter === currentFilter;
+        el.classList.toggle('active', isActive);
+        el.setAttribute('aria-checked', String(isActive));
+    });
+
+    if (allEntries.length === 0) {
+        container.innerHTML = `<p style="text-align:center; padding:40px; color:var(--text-muted);">No entries found for filter: <strong>${escapeHtml(currentFilter)}</strong></p>`;
+        return;
+    }
+
+    // Pagination Logic
+    const pageSize = store.ui.detailedPageSize || 50;
+    const page = store.ui.detailedPage || 1;
+    const totalPages = Math.ceil(allEntries.length / pageSize);
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    const pageEntries = allEntries.slice(start, end);
+
+    // Helper to format time as HH:mm using shared utility
+    const canonicalTimeZone = getCanonicalTimeZone();
+    const formatTime = (isoString: string | undefined): string => {
+        return formatTimeHHmm(isoString, canonicalTimeZone) || '—';
+    };
+
+    const amountHeaderNote = isProfitMode
+        ? '<div class="amount-header-sub">Amt / Cost / Profit</div>'
+        : '';
+    const detailedRateLabel = amountDisplay === 'cost' ? 'Rate (Cost)' : 'Rate';
+    const headerLabel = (long: string, short?: string): string =>
+        short
+            ? `<span class="header-label header-label-long">${long}</span><span class="header-label header-label-short">${short}</span>`
+            : long;
+
+    let html = `
+  <div class="table-scroll" style="margin-top: 10px;">
+    <table class="report-table" aria-label="Detailed time entries">
+      <thead>
+        <tr>
+          <th>${headerLabel('Date', 'Dt')}</th>
+          <th>${headerLabel('Start', 'St')}</th>
+          <th>${headerLabel('End', 'En')}</th>
+          <th>${headerLabel('User', 'Usr')}</th>
+          <th class="text-right">${headerLabel('Regular', 'Reg')}</th>
+          <th class="text-right">${headerLabel('Overtime', 'OT')}</th>
+          <th class="text-right">${headerLabel('Billable', 'Bill')}</th>
+          ${
+              showAmounts
+                  ? `
+          <th class="text-right amount-cell">${detailedRateLabel}${amountHeaderNote}</th>
+          <th class="text-right amount-cell">${headerLabel('Regular', 'Reg')} $${amountHeaderNote}</th>
+          <th class="text-right amount-cell">${headerLabel('Overtime', 'OT')} $${amountHeaderNote}</th>
+          ${showTier2 ? `<th class="text-right amount-cell">T2 $${amountHeaderNote}</th>` : ''}
+          <th class="text-right amount-cell">Total $${amountHeaderNote}</th>
+          `
+                  : ''
+          }
+          <th class="text-right status-header-cell">Status <button type="button" class="status-info-btn" aria-label="Status badge explanations">ⓘ</button></th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+    // Build table rows for the current page
+    // eslint-disable-next-line complexity -- Row generation with many conditional columns and status tags
+    pageEntries.forEach((e) => {
+        const date =
+            IsoUtils.extractDateKey(e.timeInterval.start) ||
+            (e.timeInterval.start || '').split('T')[0];
+        const tags: string[] = [];
+        const tagKeys = new Set<string>();
+        const addTag = (key: string, tagHtml: string) => {
+            if (tagKeys.has(key)) return;
+            tagKeys.add(key);
+            tags.push(tagHtml);
+        };
+
+        const normalizedType = String(e.type || '')
+            .trim()
+            .toUpperCase()
+            .replace(/[\s-]+/g, '_');
+        const entryClass = classifyEntryForOvertime(e);
+        const isHolidayEntry =
+            normalizedType === 'HOLIDAY' || normalizedType === 'HOLIDAY_TIME_ENTRY';
+        const isTimeOffEntry =
+            normalizedType === 'TIME_OFF' ||
+            normalizedType === 'TIMEOFF' ||
+            normalizedType === 'TIME_OFF_TIME_ENTRY';
+        const isPtoEntry = isHolidayEntry || isTimeOffEntry;
+
+        if (isHolidayEntry) {
+            addTag(
+                'HOLIDAY-TIME-ENTRY',
+                '<span class="badge badge-holiday" title="Holiday time entry (counts as regular hours, not overtime)">HOLIDAY ENTRY</span>'
+            );
+        }
+        if (isTimeOffEntry) {
+            addTag(
+                'TIME-OFF-TIME-ENTRY',
+                '<span class="badge badge-timeoff" title="Time-off entry (counts as regular hours, not overtime)">TIME-OFF ENTRY</span>'
+            );
+        }
+
+        if (!isPtoEntry) {
+            if (e.dayMeta.isHoliday) {
+                addTag(
+                    'HOLIDAY',
+                    `<span class="badge badge-holiday" title="${escapeHtml(e.dayMeta.holidayName || 'Holiday')}">HOLIDAY</span>`
+                );
+            }
+            if (e.dayMeta.isTimeOff) {
+                addTag('TIME-OFF', '<span class="badge badge-timeoff">TIME-OFF</span>');
+            }
+            if (e.dayMeta.isNonWorking) {
+                addTag('OFF-DAY', '<span class="badge badge-offday">OFF-DAY</span>');
+            }
+            if (entryClass === 'break') {
+                addTag('BREAK', '<span class="badge badge-break">BREAK</span>');
+            }
+        }
+
+        // Billable indicator
+        const billable = e.analysis?.isBillable
+            ? '<span class="badge badge-billable">✓</span>'
+            : '<span style="color:var(--text-muted)">—</span>';
+
+        let amountCells = '';
+        if (showAmounts) {
+            // Use precomputed amount breakdowns
+            const amountsByType = e.analysis?.amounts || {};
+            const rateCell = isProfitMode
+                ? buildProfitStacks(amountsByType, (amount) => amount.rate || 0, 'right')
+                : formatCurrency(e.analysis?.hourlyRate || 0);
+            const regularCell = isProfitMode
+                ? buildProfitStacks(amountsByType, (amount) => amount.regularAmount || 0, 'right')
+                : formatCurrency(e.analysis?.regularAmount || 0);
+            const otCell = isProfitMode
+                ? buildProfitStacks(
+                      amountsByType,
+                      (amount) => (amount.overtimeAmountBase || 0) + (amount.tier1Premium || 0),
+                      'right'
+                  )
+                : formatCurrency(
+                      (e.analysis?.overtimeAmountBase || 0) + (e.analysis?.tier1Premium || 0)
+                  );
+            const t2Cell = showTier2
+                ? isProfitMode
+                    ? buildProfitStacks(
+                          amountsByType,
+                          (amount) => amount.tier2Premium || 0,
+                          'right'
+                      )
+                    : formatCurrency(e.analysis?.tier2Premium || 0)
+                : '';
+            const totalCell = isProfitMode
+                ? buildProfitStacks(
+                      amountsByType,
+                      (amount) => amount.totalAmountWithOT || 0,
+                      'right'
+                  )
+                : formatCurrency(e.analysis?.totalAmountWithOT || 0);
+
+            amountCells = `
+        <td class="text-right amount-cell">${rateCell}</td>
+        <td class="text-right amount-cell">${regularCell}</td>
+        <td class="text-right amount-cell">${otCell}</td>
+        ${showTier2 ? `<td class="text-right amount-cell">${t2Cell}</td>` : ''}
+        <td class="text-right highlight amount-cell">${totalCell}</td>
+      `;
+        }
+
+        html += `
+    <tr>
+        <td>${escapeHtml(date)}</td>
+        <td>${formatTime(e.timeInterval?.start)}</td>
+        <td>${formatTime(e.timeInterval?.end)}</td>
+        <td>${escapeHtml(e.userName)}</td>
+        <td class="text-right">${formatHoursDisplay(e.analysis?.regular || 0)}</td>
+        <td class="text-right ${(e.analysis?.overtime || 0) > 0 ? 'text-danger' : ''}">${formatHoursDisplay(e.analysis?.overtime || 0)}</td>
+        <td class="text-right">${billable}</td>
+        ${amountCells}
+        <td class="text-right"><div class="tags-cell">${tags.join(' ') || '—'}</div></td>
+    </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+
+    // Pagination Controls (M7: added First/Last buttons matching summary.ts pattern)
+    if (totalPages > 1) {
+        html += `
+      <div class="pagination-controls" style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:16px;">
+          <button class="btn-secondary btn-sm pagination-btn" ${page === 1 ? 'disabled' : ''} data-page="1" title="First page">First</button>
+          <button class="btn-secondary btn-sm pagination-btn" ${page === 1 ? 'disabled' : ''} data-page="${page - 1}" title="Previous page">Previous</button>
+          <span style="font-size:12px; color:var(--text-secondary);">Page ${page} of ${totalPages}</span>
+          <button class="btn-secondary btn-sm pagination-btn" ${page === totalPages ? 'disabled' : ''} data-page="${page + 1}" title="Next page">Next</button>
+          <button class="btn-secondary btn-sm pagination-btn" ${page === totalPages ? 'disabled' : ''} data-page="${totalPages}" title="Last page">Last</button>
+      </div>`;
+    }
+
+    // PERF-1: Build new content in a DocumentFragment to batch DOM operations.
+    // SAFE-INNERHTML(detailed-table): html is built from escaped strings/formatters only.
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    const fragment = document.createDocumentFragment();
+    while (tempDiv.firstChild) {
+        fragment.appendChild(tempDiv.firstChild);
+    }
+    container.textContent = '';
+    container.appendChild(fragment);
+    if (detailedCard) {
+        ensureDetailedHeaderObserver(detailedCard);
+    }
+}

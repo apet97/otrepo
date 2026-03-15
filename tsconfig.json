@@ -1,0 +1,33 @@
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "strict": true,
+        "noEmit": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "allowSyntheticDefaultImports": true,
+        "isolatedModules": true,
+        "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"]
+    },
+    "include": [
+        "js/**/*.ts",
+        "js/**/*.js"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "coverage",
+        "__tests__"
+    ]
+}

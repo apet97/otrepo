@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.3",
+  "key": "overtime-summary",
+  "name": "Overtime Summary",
+  "baseUrl": "https://otplus-worker.petkovic-aleksandar037.workers.dev",
+  "description": "Analyze overtime hours and capacity utilization with configurable thresholds.",
+  "minimalSubscriptionPlan": "STANDARD",
+  "scopes": [
+    "TIME_ENTRY_READ",
+    "USER_READ",
+    "TIME_OFF_READ",
+    "WORKSPACE_READ",
+    "REPORTS_READ"
+  ],
+  "components": [
+    {
+      "type": "sidebar",
+      "accessLevel": "ADMINS",
+      "path": "/",
+      "label": "Overtime Summary"
+    }
+  ],
+  "iconPath": "/icon.svg",
+  "lifecycle": [
+    { "path": "/lifecycle/installed", "type": "INSTALLED" },
+    { "path": "/lifecycle/deleted", "type": "DELETED" }
+  ]
+}

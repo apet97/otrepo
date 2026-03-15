@@ -1,0 +1,45 @@
+# Dependabot configuration — automated dependency updates for npm packages
+# and GitHub Actions workflows.
+
+version: 2
+updates:
+  # --- npm packages ---
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    # Dev and production dependencies are grouped separately so that
+    # low-risk dev updates (linters, test tools) can be reviewed and
+    # merged in bulk, while production dependency changes get individual
+    # attention since they affect the shipped bundle.
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      production-dependencies:
+        dependency-type: "production"
+    # Prefix commit messages with "deps" so dependency bumps are easy to
+    # identify in git log and can be filtered in changelogs.
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+
+  # --- GitHub Actions ---
+  # A separate ecosystem entry for GitHub Actions keeps the action versions
+  # in CI workflows (e.g. actions/checkout, actions/setup-node) up to date.
+  # These updates use the "ci" prefix to distinguish them from npm dependency
+  # bumps in commit history.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "ci"
