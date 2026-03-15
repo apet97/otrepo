@@ -125,7 +125,7 @@ jobs:
       # Download the pre-built dist/ from the build job rather than
       # rebuilding, guaranteeing E2E runs against the deployable bundle.
       - name: Download build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -189,7 +189,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
