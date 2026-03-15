@@ -15,7 +15,7 @@
   "components": [
     {
       "type": "sidebar",
-      "accessLevel": "EVERYONE",
+      "accessLevel": "ADMINS",
       "path": "/",
       "label": "Overtime Summary"
     }

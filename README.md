@@ -15,6 +15,7 @@ Clockify sidebar add-on for overtime tracking. Shows daily/weekly overtime, capa
 
 1. Clockify → **Settings → Add-ons → Custom Add-ons**
 2. Manifest URL: `https://otplus-worker.petkovic-aleksandar037.workers.dev/manifest`
+   Alternate URL: `https://otplus-worker.petkovic-aleksandar037.workers.dev/manifest.json`
 3. **Install**
 
 Needs Clockify Standard+ and workspace admin.
