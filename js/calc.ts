@@ -1791,8 +1791,8 @@ export function calculateAnalysis(
                 const tier2Threshold = getEffectiveTier2Threshold(userId, dateKey, calcStore);
                 const tier2Multiplier = getEffectiveTier2Multiplier(userId, dateKey, calcStore);
 
-                let tier1Hours = 0;
-                let tier2Hours = 0;
+                let tier1Hours: number;
+                let tier2Hours: number;
 
                 // Stryker disable all
                 if (

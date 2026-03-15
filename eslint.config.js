@@ -7,7 +7,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import security from 'eslint-plugin-security';
-import importPlugin from 'eslint-plugin-import';
+import importPlugin from 'eslint-plugin-import-x';
 
 export default tseslint.config(
     // Base: ESLint recommended rules for plain JavaScript
