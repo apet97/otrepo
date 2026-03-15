@@ -2,7 +2,7 @@
 
 **Overtime analysis add-on for Clockify** — calculates daily/weekly overtime, capacity utilization, tiered premiums, billable breakdowns, and amounts per user for any date range. Exports to CSV. Runs as a sidebar widget inside Clockify.
 
-![OTPLUS demo](docs/media/otrepo.gif)
+![OTPLUS demo](documents/demoOTPLUS.gif)
 
 ## What is OTPLUS?
 
