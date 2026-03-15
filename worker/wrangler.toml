@@ -1,0 +1,25 @@
+name = "otplus-worker"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+# REPLACE with your own Cloudflare Account ID (Dashboard → Overview → right sidebar)
+account_id = "568ba06a2d8853d7120970e1e3d8695c"
+
+[vars]
+# REPLACE with your own GitHub Pages origin (e.g., https://<username>.github.io/<repo>)
+GITHUB_PAGES_ORIGIN = "https://apet97.github.io/otrepo"
+ENVIRONMENT = "production"
+
+[[kv_namespaces]]
+binding = "SETTINGS_KV"
+# REPLACE with your own KV namespace ID (run: wrangler kv namespace create SETTINGS_KV)
+id = "20fc078e0b2a4e4f812e21e20d4664e1"
+
+# --- Staging environment (uncomment and fill in to use: wrangler deploy --env staging) ---
+# [env.staging]
+# name = "otplus-worker-staging"
+# account_id = "<your-staging-account-id>"
+# [env.staging.vars]
+# GITHUB_PAGES_ORIGIN = "https://<username>.github.io/<repo>"
+# [[env.staging.kv_namespaces]]
+# binding = "SETTINGS_KV"
+# id = "<your-staging-kv-namespace-id>"

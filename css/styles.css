@@ -1,0 +1,2547 @@
+/*
+ * OTPLUS Stylesheet
+ * =================
+ * Implements light/dark theme via CSS custom properties, responsive layout
+ * optimized for Clockify's 300-400px sidebar width, density modes
+ * (comfortable/compact), and all component styles.
+ *
+ * Table of Contents
+ * -----------------
+ *   1. CSS Custom Properties (Light Theme)       ~line 30
+ *   2. Admin Utility                             ~line 75
+ *   3. Base / Reset                              ~line 78
+ *   4. Container                                 ~line 93
+ *   5. Cards                                     ~line 103
+ *   6. Accent Outline Button                     ~line 118
+ *   7. Tab Buttons (underline style)             ~line 134
+ *   8. Badges (holiday, offday, timeoff, break)  ~line 158
+ *   9. User Avatar / Cell                        ~line 203
+ *  10. Dark Theme Overrides                      ~line 236
+ *  11. Density Modes (compact / spacious)        ~line 373
+ *  12. Card Title & Section Toggle               ~line 397
+ *  13. Settings Bar Layout                       ~line 448
+ *  14. Overrides Count Badge                     ~line 495
+ *  15. Buttons (primary / secondary / tertiary)  ~line 508
+ *  16. Report Header Layout                      ~line 608
+ *  17. Date Inputs & Quick-Range Chips           ~line 702
+ *  18. Summary Area (KPI bar, stats, financial)  ~line 764
+ *  19. Legacy Summary Item Support               ~line 932
+ *  20. Tables (report-table, detailed columns)   ~line 984
+ *  21. Status Info Popover                       ~line 1107
+ *  22. Amount Stack / Profit Mode Columns        ~line 1388
+ *  23. Table Row Striping & Emphasis             ~line 1454
+ *  24. Override Inputs                           ~line 1481
+ *  25. Utility Classes (hidden, visually-hidden) ~line 1497
+ *  26. Loading Skeleton Animation                ~line 1515
+ *  27. Configuration Panel Inputs                ~line 1537
+ *  28. API / Pagination Warning Banners          ~line 1581
+ *  29. Data Section (tabs + table wrapper)       ~line 1605
+ *  30. Tab Pills                                 ~line 1630
+ *  31. Empty State                               ~line 1677
+ *  32. Version Footer                            ~line 1699
+ *  33. Config Toggle Grid & Items                ~line 1707
+ *  34. Filter Chips (detailed view)              ~line 1724
+ *  35. Tooltips                                  ~line 1761
+ *  36. Responsive: 768px (tablet)                ~line 1772
+ *  37. Responsive: 640px (profit headers)        ~line 1858
+ *  38. Responsive: 480px (small phone)           ~line 1882
+ *  39. Per-Day Override Styles                   ~line 1923
+ *  40. Weekly Override Styles                    ~line 2017
+ *  41. Mode Select                               ~line 2085
+ *  42. Overrides Page Styles                     ~line 2101
+ *  43. Session Warning & Modal                   ~line 2328
+ *  44. Clockify Sidebar Responsive (450px)       ~line 2451
+ */
+
+:root {
+  /* Background colors */
+  --bg-page: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f1f5f9;
+  --bg-hover: #e2e8f0;
+
+  /* Text colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #5e6e80;
+  --text-muted-strong: #475569;
+  --text-success: #059669;
+  --text-danger: #ef4444;
+
+  /* Border */
+  --border-color: #e2e8f0;
+
+  /* Semantic background aliases */
+  --bg-secondary: #f1f5f9;
+  --bg-tertiary: #e2e8f0;
+  --bg-primary: #ffffff;
+
+  /* Brand/accent colors */
+  --accent: #2563eb;
+  --color-accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-ring: #bfdbfe;
+  --primary-color: #2563eb;
+  --color-success: #059669;
+  --color-success-light: #d1fae5;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  /* Shadows and radius */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --radius: 10px;
+
+  /* Typography */
+  --font-sans: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+
+  /* Spacing - used by form elements */
+  --input-padding: 8px 10px;
+  --card-padding: 16px;
+  --summary-gap: 12px;
+  --summary-padding: 14px;
+  --section-spacing: 12px;
+
+  /* Table fonts */
+  --table-body-font: 14px;
+  --table-header-font: 12px;
+  --table-cell-padding: 10px 12px;
+  --title-size: 24px;
+}
+
+/* Utility: hide admin-only elements for non-admin users */
+.admin-only-hidden { display: none !important; }
+
+/* Base body styles keep padding consistent with Clockify UI design */
+body {
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 16px;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.container {
+  max-width: 80rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--section-spacing);
+}
+
+/* The main container keeps cards vertically stacked with consistent gutters */
+
+/* Cards */
+.card {
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  transition: box-shadow 0.2s;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+/* Cards mimic Clockify's surface treatment with subtle shadows and rounded corners */
+
+.btn-accent-outline {
+  background: white;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-accent-outline:hover {
+  background: var(--color-accent);
+  color: white;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  color: var(--color-accent);
+}
+
+.tab-btn.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* Tabs use underline highlight to indicate active view without adding extra chrome */
+
+/* Tables — canonical definitions are below (line ~657+) */
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.badge-holiday {
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fcd34d;
+}
+
+.badge-offday {
+  background: #f1f5f9;
+  color: var(--text-muted-strong);
+  border: 1px solid #e2e8f0;
+}
+
+.badge-timeoff {
+  background: #e0f2fe;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+}
+
+.badge-break {
+  background: #d1fae5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.badge-billable {
+  color: var(--color-success);
+  font-weight: bold;
+}
+
+.text-danger {
+  color: var(--color-danger);
+}
+
+/* ========================================
+   User Avatar & Cell — initials circle and inline
+   user name display used in summary/detailed tables
+   ======================================== */
+.user-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--color-accent), #3b82f6);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.user-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  flex: 0 0 auto;
+}
+
+.user-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ========================================
+   Dark Theme — overrides CSS custom properties when
+   Clockify applies the .cl-theme-dark class to <html>
+   ======================================== */
+.cl-theme-dark {
+  /* Background colors - dark theme */
+  --bg-page: #1a1a2e;
+  --bg-surface: #252542;
+  --bg-subtle: #1e1e38;
+  --bg-hover: #2a2a4a;
+
+  /* Text colors - dark theme */
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0c0;
+  --text-muted: #888899;
+  --text-muted-strong: #cbd5e1;
+  --text-success: #34d399;
+  --text-danger: #f87171;
+
+  /* Border - dark theme */
+  --border-color: #404060;
+
+  /* Semantic background aliases - dark theme */
+  --bg-secondary: #1e1e38;
+  --bg-tertiary: #2a2a4a;
+  --bg-primary: #252542;
+
+  /* Accent colors - dark theme (brighter for visibility) */
+  --accent: #60a5fa;
+  --color-accent: #60a5fa;
+  --accent-hover: #3b82f6;
+  --accent-ring: rgba(96, 165, 250, 0.3);
+  --primary-color: #60a5fa;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+}
+
+/* Dark mode specific overrides */
+.cl-theme-dark .btn-primary {
+  background: var(--color-accent);
+  box-shadow: 0 2px 4px rgba(96, 165, 250, 0.3);
+}
+
+.cl-theme-dark .btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.cl-theme-dark .btn-secondary {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+.cl-theme-dark .btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--color-accent);
+  color: var(--text-primary);
+}
+
+.cl-theme-dark .btn-accent-outline {
+  background: var(--bg-subtle);
+}
+
+.cl-theme-dark .btn-accent-outline:hover {
+  background: var(--color-accent);
+}
+
+.cl-theme-dark .badge-holiday {
+  background: #422006;
+  color: #fbbf24;
+  border-color: #854d0e;
+}
+
+.cl-theme-dark .badge-offday {
+  background: #1e293b;
+  color: var(--text-muted-strong);
+  border-color: #334155;
+}
+
+.cl-theme-dark .badge-timeoff {
+  background: #0c4a6e;
+  color: #7dd3fc;
+  border-color: #0369a1;
+}
+
+.cl-theme-dark .badge-break {
+  background: #064e3b;
+  color: #6ee7b7;
+  border-color: #065f46;
+}
+
+.cl-theme-dark .api-status-banner {
+  background: #422006;
+  border-color: #854d0e;
+  color: #fcd34d;
+}
+
+.cl-theme-dark .pagination-warning-banner {
+  background: #451a03;
+  border-color: #78350f;
+  color: #fbbf24;
+}
+
+.cl-theme-dark .chip {
+  background: var(--bg-subtle);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.cl-theme-dark .chip:hover {
+  background: var(--bg-hover);
+}
+
+/* HIGH FIX #12: Dark mode chip text should be white for readability */
+.cl-theme-dark .chip.active {
+  background: rgba(96, 165, 250, 0.2);
+  color: var(--color-accent);
+  border-color: rgba(96, 165, 250, 0.4);
+}
+
+.cl-theme-dark .summary-item.highlight .summary-value {
+  background: rgba(52, 211, 153, 0.2);
+}
+
+.cl-theme-dark .mode-select {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.cl-theme-dark .copy-global-to-weekly-btn {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.cl-theme-dark .copy-global-to-weekly-btn:hover {
+  background: var(--bg-hover);
+}
+
+/* ========================================
+   Density Modes — compact (default) and spacious
+   Adjust padding, gaps, and sizing via custom properties
+   ======================================== */
+body.density-compact {
+  --page-padding: 8px;
+  --card-padding: 10px;
+  --section-gap: 12px;
+  --summary-gap: 12px;
+  --table-cell-padding: 8px 10px;
+  --avatar-size: 22px;
+  --title-size: 18px;
+}
+
+body.density-spacious {
+  --page-padding: 20px;
+  --card-padding: 18px;
+  --section-gap: 18px;
+  --summary-gap: 18px;
+  --table-cell-padding: 14px 18px;
+  --avatar-size: 30px;
+  --title-size: 21px;
+}
+
+/* Cards & Components - Density Overrides */
+.card {
+  padding: var(--card-padding);
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.section-toggle .toggle-icon {
+  font-size: 9px;
+  width: 12px;
+  transition: transform 0.2s;
+}
+
+.section-toggle.collapsed .toggle-icon {
+  transform: rotate(-90deg);
+}
+
+/* Settings bar toggle button */
+.section-toggle-btn {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.section-toggle-btn:hover {
+  background: var(--bg-subtle);
+}
+
+/* Settings bar layout */
+.settings-bar-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .settings-bar-layout {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.settings-bar-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-bar-info {
+  min-width: 0;
+}
+
+.settings-bar-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.settings-bar-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.settings-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.overrides-count-badge {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 9999px;
+  background: #fffbeb;
+  font-size: 12px;
+  font-weight: 500;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+/* Buttons — strict hierarchy: primary (filled blue), secondary (bordered), tertiary (ghost) */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.btn-primary:disabled {
+  background: #64748b;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-primary[aria-busy="true"] {
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid #cbd5e1;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-subtle);
+}
+
+.btn-tertiary,
+.btn-text {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-tertiary:hover,
+.btn-text:hover {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.btn-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-subtle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn-xs {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+/* ========================================
+   Report Header — title / filters / actions
+   ======================================== */
+.filter-bar-compact {
+  padding: 10px 12px;
+}
+
+.report-header-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (min-width: 1280px) {
+  .report-header-layout {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+}
+
+.report-header-title {
+  min-width: 0;
+}
+
+.report-subtitle {
+  margin: 1px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.filter-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.report-header-filters {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 48rem;
+}
+
+.date-inputs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.report-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (min-width: 1280px) {
+  .report-header-actions {
+    justify-content: flex-end;
+  }
+}
+
+.date-input-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.compact-title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.compact-date {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  font-size: 14px;
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.compact-date:focus,
+.compact-date:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+  outline: 2px solid transparent;
+}
+
+.compact-date-compat {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  min-width: 150px;
+}
+
+/* Quick range chips — pill style */
+.quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quick-chip {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-subtle);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.quick-chip:hover {
+  background: var(--bg-hover);
+}
+
+.quick-chip.active {
+  border-color: var(--accent-ring);
+  background: #eff6ff;
+  color: var(--accent);
+}
+
+/* ========================================
+   Summary Area — KPI bar, secondary stats, financial bar
+   ======================================== */
+.summary-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Headline KPI bar — single compact horizontal row */
+.kpi-bar {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+  padding: 0;
+  overflow-x: auto;
+}
+
+.kpi-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 16px;
+  flex: 1;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.kpi-chip + .kpi-chip {
+  border-left: 1px solid var(--border-color);
+}
+
+.kpi-chip-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.kpi-chip-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.025em;
+}
+
+.kpi-chip-value.kpi-danger {
+  color: var(--text-danger);
+}
+
+/* Secondary stats row — compact inline metrics */
+.secondary-stats {
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  padding: 8px 12px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-item .stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.stat-item .stat-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Financial summary bar — single card with side-by-side columns */
+.financial-bar {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  padding: 10px 0;
+  box-shadow: var(--shadow-sm);
+}
+@media (min-width: 768px) {
+  .financial-bar { flex-direction: row; }
+}
+
+.fin-col {
+  flex: 1;
+  padding: 4px 14px;
+  min-width: 0;
+}
+
+.fin-col + .fin-col {
+  border-top: 1px solid var(--border-color);
+}
+@media (min-width: 768px) {
+  .fin-col + .fin-col {
+    border-top: none;
+    border-left: 1px solid var(--border-color);
+  }
+}
+
+.fin-col-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fin-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.fin-primary {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.fin-primary.fin-positive {
+  color: var(--text-success);
+}
+
+.fin-primary.fin-default {
+  color: var(--text-primary);
+}
+
+.fin-rows {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.fin-row-label {
+  color: var(--text-muted);
+}
+
+.fin-row-value {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Legacy summary-item support (keep for backward compat) */
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.summary-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.summary-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.summary-item.danger .summary-value {
+  color: var(--text-danger);
+}
+
+.summary-item.highlight .summary-value {
+  color: var(--text-success);
+}
+
+#summaryStrip:not(.summary-expanded) .summary-item.more {
+  display: none;
+}
+
+/* Legacy two-row summary layout support */
+.ot-summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px 18px;
+  align-items: center;
+}
+
+.ot-summary-row-top {
+  min-width: 100%;
+}
+
+.ot-summary-row-bottom {
+  min-width: 100%;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+/* Tables */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-right: 12px;
+}
+
+/* table-layout: fixed forces columns to respect explicit width percentages
+   rather than auto-sizing to content, preventing layout thrashing on large
+   datasets and enabling predictable column alignment across rows. */
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-body-font);
+  table-layout: fixed;
+}
+
+/* Detailed table column widths - fixed layout */
+#detailedCard .report-table th:nth-child(1),  /* Date */
+#detailedCard .report-table td:nth-child(1) {
+  width: 6%;
+  min-width: 60px;
+}
+
+#detailedCard .report-table th:nth-child(2),  /* Start */
+#detailedCard .report-table td:nth-child(2),
+#detailedCard .report-table th:nth-child(3),  /* End */
+#detailedCard .report-table td:nth-child(3) {
+  width: 5%;
+  min-width: 50px;
+}
+
+#detailedCard .report-table th:nth-child(4),  /* User */
+#detailedCard .report-table td:nth-child(4) {
+  width: 9%;
+  min-width: 80px;
+}
+
+#detailedCard .report-table th:nth-child(5),  /* Regular */
+#detailedCard .report-table td:nth-child(5) {
+  width: 6%;
+  min-width: 55px;
+}
+
+#detailedCard .report-table th:nth-child(6),  /* Overtime */
+#detailedCard .report-table td:nth-child(6) {
+  width: 6%;
+  min-width: 60px;
+}
+
+#detailedCard .report-table th:nth-child(7),  /* Billable */
+#detailedCard .report-table td:nth-child(7) {
+  width: 6%;
+  min-width: 70px;
+}
+
+#detailedCard .report-table th:nth-child(8),  /* Rate $/h */
+#detailedCard .report-table td:nth-child(8) {
+  width: 8%;
+  min-width: 80px;
+}
+
+#detailedCard .report-table th:nth-child(9),  /* Regular $ */
+#detailedCard .report-table td:nth-child(9) {
+  width: 8%;
+  min-width: 80px;
+}
+
+#detailedCard .report-table th:nth-child(10), /* OT $ */
+#detailedCard .report-table td:nth-child(10),
+#detailedCard .report-table th:nth-child(11), /* T2 $ */
+#detailedCard .report-table td:nth-child(11) {
+  width: 6%;
+  min-width: 60px;
+}
+
+#detailedCard .report-table th:nth-child(12), /* Total $ */
+#detailedCard .report-table td:nth-child(12) {
+  width: 9%;
+  min-width: 90px;
+}
+
+#detailedCard .report-table th:last-child, /* Status */
+#detailedCard .report-table td:last-child {
+  width: 14%;
+  min-width: 170px;
+}
+
+/* Fix tags column flex wrapping */
+#detailedCard .tags-cell {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+
+/* Status column info button */
+.status-info-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: normal;
+  padding: 2px 4px;
+  margin-left: 4px;
+  border-radius: 50%;
+  transition: background-color 0.2s, color 0.2s;
+  vertical-align: middle;
+}
+
+.status-info-btn:hover {
+  color: var(--color-accent);
+  background-color: var(--bg-hover);
+}
+
+.status-info-btn:focus-visible {
+  color: var(--color-accent);
+  background-color: var(--bg-hover);
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Status info popover */
+.status-info-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  padding: 12px 16px;
+  z-index: 100;
+  min-width: 280px;
+  max-width: 320px;
+  font-size: 12px;
+  font-weight: normal;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+}
+
+.status-info-popover.hidden {
+  display: none;
+}
+
+.status-info-popover h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.status-info-popover dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+}
+
+.status-info-popover dt {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.status-info-popover dd {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* When billable breakdown is disabled, hide the billable filter chip
+   and the billable column (7th) from the detailed table entirely. */
+#detailedCard.billable-off .chip[data-filter="billable"] {
+  display: none;
+}
+
+#detailedCard.billable-off .report-table th:nth-child(7),
+#detailedCard.billable-off .report-table td:nth-child(7) {
+  display: none;
+}
+
+/* Table headers use position: sticky so they remain visible at the top
+   of the scrollable table container while the user scrolls through rows. */
+.report-table th {
+  padding: var(--table-cell-padding);
+  background: var(--bg-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+#detailedCard .report-table th {
+  text-align: center;
+}
+
+.report-table th:not(:last-child) {
+  border-right: none;
+}
+
+.report-table td {
+  padding: var(--table-cell-padding);
+  border-bottom: 1px solid #f1f5f9;
+  color: var(--text-primary);
+  font-size: 14px;
+  /* tabular-nums ensures all digits are the same width so numeric columns align vertically */
+  font-variant-numeric: tabular-nums;
+}
+
+#summaryCard .report-table th:first-child,
+#summaryCard .report-table td:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#summaryCard .report-table th {
+  /* Allow multi-word headers like "Bill. Worked" to wrap instead of clipping */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+}
+
+#summaryCard .report-table th.text-right {
+  text-align: right;
+}
+
+#detailedCard .report-table th:nth-child(8),
+#detailedCard .report-table td:nth-child(8),
+#detailedCard .report-table th:nth-child(9),
+#detailedCard .report-table td:nth-child(9),
+#detailedCard .report-table th:nth-child(10),
+#detailedCard .report-table td:nth-child(10),
+#detailedCard .report-table th:nth-child(11),
+#detailedCard .report-table td:nth-child(11),
+#detailedCard .report-table th:nth-child(12),
+#detailedCard .report-table td:nth-child(12) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status column header wrapper for popover positioning - must come after nth-child rules */
+#detailedCard .report-table th.status-header-cell {
+  position: relative;
+  overflow: visible;
+}
+
+#detailedCard .report-table th.amount-cell {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+#detailedCard .report-table td.amount-cell {
+  /* Avoid ellipsis in stacked amount cells */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+#detailedCard.amount-profit .report-table th.amount-cell,
+#detailedCard.amount-profit .report-table td.amount-cell {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* Profit mode: wider columns for stacked AMT/COST/PROFIT values */
+/* Must override width (not just min-width) because table-layout: fixed */
+#detailedCard.amount-profit .report-table th:nth-child(1),
+#detailedCard.amount-profit .report-table td:nth-child(1) {
+  width: 6%;
+  min-width: 70px;
+}
+
+#detailedCard.amount-profit .report-table th:nth-child(2),
+#detailedCard.amount-profit .report-table td:nth-child(2),
+#detailedCard.amount-profit .report-table th:nth-child(3),
+#detailedCard.amount-profit .report-table td:nth-child(3) {
+  width: 5%;
+  min-width: 55px;
+}
+
+#detailedCard.amount-profit .report-table th:nth-child(4),
+#detailedCard.amount-profit .report-table td:nth-child(4) {
+  width: 9%;
+  min-width: 80px;
+}
+
+#detailedCard.amount-profit .report-table th:nth-child(5),
+#detailedCard.amount-profit .report-table td:nth-child(5),
+#detailedCard.amount-profit .report-table th:nth-child(6),
+#detailedCard.amount-profit .report-table td:nth-child(6),
+#detailedCard.amount-profit .report-table th:nth-child(7),
+#detailedCard.amount-profit .report-table td:nth-child(7) {
+  width: 6%;
+  min-width: 65px;
+}
+
+#detailedCard.amount-profit .report-table th:nth-child(1),
+#detailedCard.amount-profit .report-table th:nth-child(2),
+#detailedCard.amount-profit .report-table th:nth-child(3),
+#detailedCard.amount-profit .report-table th:nth-child(4),
+#detailedCard.amount-profit .report-table th:nth-child(5),
+#detailedCard.amount-profit .report-table th:nth-child(6),
+#detailedCard.amount-profit .report-table th:nth-child(7) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  word-break: normal;
+  overflow-wrap: normal;
+  font-size: 11px;
+  line-height: 1.1;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+#detailedCard.amount-profit.narrow-headers .report-table th:nth-child(1),
+#detailedCard.amount-profit.narrow-headers .report-table th:nth-child(2),
+#detailedCard.amount-profit.narrow-headers .report-table th:nth-child(3),
+#detailedCard.amount-profit.narrow-headers .report-table th:nth-child(4),
+#detailedCard.amount-profit.narrow-headers .report-table th:nth-child(5),
+#detailedCard.amount-profit.narrow-headers .report-table th:nth-child(6),
+#detailedCard.amount-profit.narrow-headers .report-table th:nth-child(7) {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+  line-height: 1.15;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#detailedCard.amount-profit .report-table td:nth-child(1),
+#detailedCard.amount-profit .report-table td:nth-child(2),
+#detailedCard.amount-profit .report-table td:nth-child(3) {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+#detailedCard .report-table td:nth-child(1) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+#detailedCard .report-table td:nth-child(2),
+#detailedCard .report-table td:nth-child(3) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+#detailedCard .header-label-short {
+  display: none;
+}
+
+#detailedCard.amount-profit.narrow-headers .header-label-long {
+  display: none;
+}
+
+#detailedCard.amount-profit.narrow-headers .header-label-short {
+  display: inline;
+}
+
+#detailedCard.amount-profit .report-table th:nth-child(8),
+#detailedCard.amount-profit .report-table td:nth-child(8) {
+  width: 9%;
+  min-width: 100px;
+}
+
+#detailedCard.amount-profit .report-table th:nth-child(9),
+#detailedCard.amount-profit .report-table td:nth-child(9) {
+  width: 10%;
+  min-width: 115px;
+}
+
+#detailedCard.amount-profit .report-table th:nth-child(10),
+#detailedCard.amount-profit .report-table td:nth-child(10),
+#detailedCard.amount-profit .report-table th:nth-child(11),
+#detailedCard.amount-profit .report-table td:nth-child(11) {
+  width: 10%;
+  min-width: 110px;
+}
+
+#detailedCard.amount-profit .report-table th:nth-child(12),
+#detailedCard.amount-profit .report-table td:nth-child(12) {
+  width: 11%;
+  min-width: 120px;
+}
+
+#detailedCard.amount-profit .report-table th:nth-child(13),
+#detailedCard.amount-profit .report-table td:nth-child(13) {
+  width: 7%;
+  min-width: 90px;
+}
+
+.amount-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.amount-stack-left {
+  align-items: flex-start;
+}
+
+.amount-stack-right {
+  align-items: flex-end;
+}
+
+.amount-line {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.amount-tag {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted-strong);
+}
+
+#detailedCard.amount-profit .report-table th.amount-cell,
+#detailedCard.amount-profit .report-table td.amount-cell {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+#detailedCard.amount-profit .amount-stack {
+  width: 100%;
+  max-width: 100%;
+}
+
+#detailedCard.amount-profit .amount-line {
+  width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  row-gap: 2px;
+}
+
+#detailedCard.amount-profit .amount-value {
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.amount-header-sub {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted-strong);
+}
+
+.report-table td:not(:last-child) {
+  border-right: none;
+}
+
+.report-table tbody tr:nth-child(even) {
+  background-color: rgba(248, 250, 252, 0.4);
+}
+
+.report-table tbody tr:hover {
+  background-color: var(--bg-subtle);
+}
+
+/* Column emphasis — stronger for key financial/time columns */
+.td-emphasis {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.td-profit {
+  font-weight: 600;
+  color: var(--text-success);
+}
+
+.td-muted {
+  color: var(--text-muted);
+}
+
+.text-right {
+  text-align: right;
+}
+
+/* Overrides */
+.override-input {
+  width: 100%;
+  max-width: 68px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  text-align: center;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.override-input.inherited {
+  color: var(--text-muted);
+}
+
+/* Utilities */
+.hidden {
+  display: none !important;
+}
+
+/* MEDIUM FIX #21: Visually hidden but accessible to screen readers */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skeleton loading placeholder: shimmer gradient slides left-to-right
+   to indicate content is loading. Used in the #loadingState container. */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-subtle) 25%, var(--bg-hover) 50%, var(--bg-subtle) 75%);
+  background-size: 200% 100%;
+  /* Animates the gradient position to create a continuous shimmer effect */
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 6px;
+  height: 20px;
+}
+
+.skeleton + .skeleton {
+  margin-top: 10px;
+}
+
+/* Skeleton shimmer: translates the oversized background from right to left */
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Config */
+.config-inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.tier2-config {
+  display: contents;
+}
+
+/* Ensure Amounts and Decimal time controls are always visible */
+.config-inline > label.config-item:has(#amountDisplay),
+.config-inline > label.config-item:has(#showDecimalTime) {
+  display: inline-flex !important;
+}
+
+.config-input-sm {
+  width: 64px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+#amountDisplay {
+  /* Ensure dropdown text (Amount/Cost/Profit) is fully visible */
+  width: 112px;
+  min-width: 112px;
+}
+
+#overtimeBasis {
+  width: 110px;
+  min-width: 110px;
+}
+
+#reportTimeZone {
+  width: 160px;
+  min-width: 160px;
+}
+
+/* API Status Banner */
+.api-status-banner {
+  background: #fff3cd;
+  border-color: #ffc107;
+  color: #856404;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+/* Pagination Warning Banner */
+.pagination-warning-banner {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+/* Tab Navigation — pill style tabs */
+.tab-nav-card {
+  display: none;
+  padding: 8px;
+}
+
+/* Data Section — wraps tabs + controls + table into one visual unit */
+.data-section {
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.data-section-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-color);
+  padding: 8px 12px;
+}
+
+@media (min-width: 1024px) {
+  .data-section-toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.tab-pills {
+  display: inline-flex;
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  padding: 2px;
+}
+
+.tab-pill {
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tab-pill:hover {
+  color: var(--text-primary);
+}
+
+.tab-pill.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.data-section-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Cards inside data section lose their own border/shadow */
+.data-section > .card {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.data-section > .card:hover {
+  box-shadow: none;
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 16px;
+}
+
+.empty-state-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.empty-state-hint {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Version Footer */
+.version-footer {
+  text-align: right;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.config-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 4px;
+}
+
+.config-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  font-size: 12px;
+}
+
+/* Filter Chips */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 0 12px 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chip {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chip:hover {
+  background: var(--bg-hover);
+}
+
+.chip.active {
+  border-color: var(--accent-ring);
+  background: #eff6ff;
+  color: var(--accent);
+}
+
+/* Filter chips behave like toggle pills referencing the entry filters */
+
+/* Tooltips (Native Title) */
+[title] {
+  cursor: help;
+}
+
+.badge[title] {
+  text-decoration: underline dotted;
+}
+
+/* ========================================
+   Responsive: Tablet & Narrow Desktop (max-width: 768px)
+   Stacks filters vertically, widens date inputs,
+   switches summary to list layout, and reduces table font.
+   ======================================== */
+@media (max-width: 768px) {
+  body {
+    padding: 12px;
+  }
+
+  .container {
+    gap: 16px;
+  }
+
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .button-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .date-input-group {
+    width: 100%;
+  }
+
+  .compact-date {
+    width: 100%;
+  }
+
+  .compact-title {
+    font-size: 18px;
+  }
+
+  .summary-inline {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .summary-item {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .summary-item:last-child {
+    border-bottom: none;
+  }
+
+  .table-scroll {
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+
+  .report-table {
+    font-size: 12px;
+    min-width: 500px;
+  }
+
+  .report-table th,
+  .report-table td {
+    padding: 8px 10px;
+  }
+
+  .config-toggle-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-chips {
+    flex-wrap: wrap;
+  }
+
+  .chip {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+
+  .pagination-controls {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tab-nav-card {
+    overflow-x: auto;
+  }
+}
+
+/* Responsive: 640px — force profit-mode headers to wrap and use short
+   labels so stacked amount/cost/profit values remain readable. */
+@media (max-width: 640px) {
+  #detailedCard.amount-profit .report-table th:nth-child(1),
+  #detailedCard.amount-profit .report-table th:nth-child(2),
+  #detailedCard.amount-profit .report-table th:nth-child(3),
+  #detailedCard.amount-profit .report-table th:nth-child(4),
+  #detailedCard.amount-profit .report-table th:nth-child(5),
+  #detailedCard.amount-profit .report-table th:nth-child(6),
+  #detailedCard.amount-profit .report-table th:nth-child(7) {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  #detailedCard.amount-profit .header-label-long {
+    display: none;
+  }
+
+  #detailedCard.amount-profit .header-label-short {
+    display: inline;
+  }
+}
+
+/* ========================================
+   Responsive: Small Phone (max-width: 480px)
+   Tightens spacing further for small phones and very narrow viewports.
+   ======================================== */
+@media (max-width: 480px) {
+  .report-table {
+    min-width: 400px;
+  }
+
+  #detailedCard.amount-profit .report-table th {
+    padding: 6px 6px;
+    font-size: 10px;
+    line-height: 1.15;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  #detailedCard.amount-profit .report-table th:nth-child(1),
+  #detailedCard.amount-profit .report-table th:nth-child(2),
+  #detailedCard.amount-profit .report-table th:nth-child(3),
+  #detailedCard.amount-profit .report-table th:nth-child(4),
+  #detailedCard.amount-profit .report-table th:nth-child(5),
+  #detailedCard.amount-profit .report-table th:nth-child(6),
+  #detailedCard.amount-profit .report-table th:nth-child(7) {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .overrides-table-container {
+    max-height: 200px;
+  }
+}
+
+/* ========================================
+   Per-Day Override Styles — day-of-week capacity
+   and multiplier inputs within user override cards
+   ======================================== */
+
+/* Mode toggle button */
+.mode-toggle-btn {
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-toggle-btn:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* Per-day editor container */
+.per-day-editor-row {
+  background: var(--bg-tertiary);
+}
+
+.per-day-inputs-container {
+  padding: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Copy from global button section */
+.per-day-actions {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.copy-from-global-btn {
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-color);
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.copy-from-global-btn:hover {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.per-day-table {
+  width: 100%;
+  font-size: 0.9rem;
+  border-collapse: collapse;
+}
+
+.per-day-table th {
+  background: var(--bg-secondary);
+  padding: 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.per-day-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.per-day-table td.weekday {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.per-day-input {
+  width: 80px;
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+}
+
+.per-day-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-color: var(--primary-color);
+}
+
+/* ========================================
+   Weekly Override Styles — week-level capacity and
+   multiplier inputs within user override cards
+   ======================================== */
+.weekly-editor-row {
+  background: var(--bg-tertiary);
+}
+
+.weekly-inputs-container {
+  padding: 1rem;
+}
+
+.weekly-actions {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.copy-global-to-weekly-btn {
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-color);
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.copy-global-to-weekly-btn:hover {
+  background: var(--bg-secondary);
+}
+
+.weekly-table {
+  width: 100%;
+  font-size: 0.9rem;
+  border-collapse: collapse;
+}
+
+.weekly-table th {
+  background: var(--bg-secondary);
+  padding: 0.5rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.weekly-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.weekday-label {
+  font-weight: 500;
+  min-width: 100px;
+}
+
+.weekly-input {
+  width: 80px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+}
+
+.weekly-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-color: var(--primary-color);
+}
+
+.mode-select {
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  min-width: 100px;
+  font-size: 0.9rem;
+  background: white;
+  cursor: pointer;
+}
+
+.mode-select:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-color: var(--primary-color);
+}
+
+/* ========================================
+   Overrides Page Styles
+   ======================================== */
+
+/* Page entrance animation: fades in and slides down slightly to give
+   the overrides page a smooth reveal when toggled from the report view. */
+#overridesPage {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header with back button */
+.overrides-page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.overrides-page-title {
+  font-size: 20px;
+  font-weight: 600;
+  flex: 1;
+  margin: 0;
+}
+
+/* Intro card */
+.overrides-intro {
+  background: var(--bg-subtle);
+}
+
+.overrides-intro p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+/* User cards container */
+#overridesUserList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Individual user card */
+.override-user-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 20px;
+  background: var(--bg-surface);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.override-user-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.override-user-card.has-custom {
+  border-left: 3px solid var(--color-accent);
+}
+
+/* User header */
+.override-user-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.override-user-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.override-badge {
+  font-size: 9px;
+  font-weight: bold;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.override-profile-hint {
+  font-size: 11px;
+  color: var(--text-muted-strong);
+  margin-left: auto;
+}
+
+/* Fields grid - responsive */
+.override-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.override-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.override-field label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted-strong);
+}
+
+.override-field .override-input,
+.override-field .override-select {
+  width: 100%;
+  max-width: none;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.override-field .override-input:focus-visible,
+.override-field .override-select:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-color: var(--color-accent);
+}
+
+.override-field .override-input.inherited {
+  color: var(--text-muted);
+}
+
+/* Expanded section for per-day/weekly editors */
+.override-expanded-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Mobile: stack fields */
+@media (max-width: 480px) {
+  .override-fields-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .override-user-card {
+    padding: 16px;
+  }
+
+  .overrides-page-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .overrides-page-title {
+    font-size: 18px;
+    width: 100%;
+    order: 2;
+  }
+}
+
+/* Dark mode adjustments */
+.cl-theme-dark .override-user-card {
+  background: var(--bg-surface);
+  border-color: var(--border-color);
+}
+
+.cl-theme-dark .override-user-card.has-custom {
+  border-left-color: var(--color-accent);
+}
+
+.cl-theme-dark .override-field .override-input,
+.cl-theme-dark .override-field .override-select {
+  background: var(--bg-subtle);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.cl-theme-dark .overrides-intro {
+  background: var(--bg-subtle);
+}
+
+/* Collapsible user cards */
+.override-user-card.collapsed .override-card-content {
+  display: none;
+}
+
+.override-user-card.collapsed .override-user-header {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.override-user-header {
+  cursor: pointer;
+  user-select: none;
+}
+
+.override-user-header .toggle-icon {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.override-user-card:not(.collapsed) .override-user-header .toggle-icon {
+  transform: rotate(90deg);
+}
+
+/* Config title row with Overrides button */
+.config-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ========================================
+   Session Warning Styles
+   ======================================== */
+
+/* Session warning banner — position: sticky keeps the warning pinned to the top
+   of the scrollable viewport so the user always sees the expiration notice. */
+.session-warning-banner {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+  padding: 12px 16px;
+  font-size: 13px;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.session-warning-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.session-warning-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.session-warning-text {
+  flex: 1;
+  min-width: 200px;
+}
+
+.session-warning-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.session-reauth-btn,
+.session-dismiss-btn {
+  white-space: nowrap;
+}
+
+/* ========================================
+   Session Expired Modal — full-screen overlay with
+   centered dialog shown when the JWT session expires
+   ======================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(2px);
+}
+
+.modal-content {
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  padding: 32px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.session-expired-modal h2,
+.confirm-modal h2 {
+  margin: 0 0 16px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.session-expired-modal p,
+.confirm-modal p {
+  margin: 0 0 24px 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  text-align: left;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* Dark mode session warning */
+.cl-theme-dark .session-warning-banner {
+  background: #451a03;
+  border-color: #78350f;
+  color: #fbbf24;
+}
+
+.cl-theme-dark .modal-overlay {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.cl-theme-dark .modal-content {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+}
+
+@media (max-width: 480px) {
+  .session-warning-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .session-warning-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .modal-content {
+    padding: 24px;
+  }
+}
+
+/* Clockify sidebar responsive (300-400px) — targets Clockify's narrow sidebar
+   viewport, which typically renders between 300px and 400px wide. Reduces
+   padding, font sizes, and forces single-column layouts to fit. */
+@media (max-width: 450px) {
+  body { padding: 8px; }
+  .container { max-width: 100%; padding: 0; }
+  .compact-title { font-size: 16px; }
+  .kpi-bar { flex-wrap: wrap; }
+  .kpi-chip { flex: 1 1 45%; }
+  .financial-bar { flex-direction: column; }
+  .data-table { font-size: 11px; }
+  .data-table th, .data-table td { padding: 4px 6px; }
+  .btn { padding: 6px 10px; font-size: 12px; }
+  .filter-bar-compact { gap: 6px; }
+  .config-toggle-grid { grid-template-columns: 1fr; }
+}
