@@ -488,6 +488,14 @@ export async function verifyInstallToken(
  * @returns `true` if the user is a workspace admin or owner; `false` on
  *          any error, missing token, or insufficient role.
  */
+/** Roles that grant workspace-admin privileges in a verified JWT. */
+const ADMIN_ROLES = ['WORKSPACE_ADMIN', 'OWNER'] as const;
+
+/** Check whether a JWT `workspaceRole` claim represents an admin role. */
+export function isAdminRole(role: string | undefined): boolean {
+  return role != null && (ADMIN_ROLES as readonly string[]).includes(role);
+}
+
 export async function isWorkspaceAdmin(
   env: Env,
   workspaceId: string,

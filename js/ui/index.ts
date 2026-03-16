@@ -280,6 +280,17 @@ function bindOverridesEvents(
             if (userid) {
                 callbacks.onOverrideModeChange(userid, select.value);
                 renderOverridesPage();
+                // Re-expand the card whose mode was just changed
+                const escaped = typeof CSS !== 'undefined' && CSS.escape
+                    ? CSS.escape(userid)
+                    : userid.replace(/["\\]/g, '\\$&');
+                const card = overridesUserList?.querySelector(
+                    `.override-user-card[data-userid="${escaped}"]`
+                );
+                if (card) {
+                    const hdr = card.querySelector('.override-user-header');
+                    if (hdr) toggleCardCollapse(hdr);
+                }
             }
         }
     };

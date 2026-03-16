@@ -11,7 +11,7 @@
  */
 
 import type { Env, WorkspaceConfig, WorkspaceOverrides } from './types';
-import { extractAndVerifyJwt, isWorkspaceAdmin, jsonResponse, errorResponse } from './auth';
+import { extractAndVerifyJwt, isAdminRole, isWorkspaceAdmin, jsonResponse, errorResponse } from './auth';
 
 // --- Runtime validation type guards ---
 
@@ -286,7 +286,8 @@ export async function handleConfigPut(request: Request, env: Env): Promise<Respo
   if (!jwt.backendUrl) {
     return errorResponse('Bad Request: token missing backendUrl', 400, request, env.ENVIRONMENT);
   }
-  const isAdmin = await isWorkspaceAdmin(env, jwt.workspaceId, userId, jwt.backendUrl);
+  const isAdmin = isAdminRole(jwt.workspaceRole)
+    || await isWorkspaceAdmin(env, jwt.workspaceId, userId, jwt.backendUrl);
   if (!isAdmin) {
     return errorResponse('Forbidden: admin access required', 403, request, env.ENVIRONMENT);
   }
@@ -398,7 +399,8 @@ export async function handleOverridesPut(request: Request, env: Env): Promise<Re
   if (!jwt.backendUrl) {
     return errorResponse('Bad Request: token missing backendUrl', 400, request, env.ENVIRONMENT);
   }
-  const isAdmin = await isWorkspaceAdmin(env, jwt.workspaceId, userId, jwt.backendUrl);
+  const isAdmin = isAdminRole(jwt.workspaceRole)
+    || await isWorkspaceAdmin(env, jwt.workspaceId, userId, jwt.backendUrl);
   if (!isAdmin) {
     return errorResponse('Forbidden: admin access required', 403, request, env.ENVIRONMENT);
   }
