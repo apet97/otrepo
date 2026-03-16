@@ -281,9 +281,10 @@ function bindOverridesEvents(
                 callbacks.onOverrideModeChange(userid, select.value);
                 renderOverridesPage();
                 // Re-expand the card whose mode was just changed
-                const escaped = typeof CSS !== 'undefined' && CSS.escape
-                    ? CSS.escape(userid)
-                    : userid.replace(/["\\]/g, '\\$&');
+                const escaped =
+                    typeof CSS !== 'undefined' && CSS.escape
+                        ? CSS.escape(userid)
+                        : userid.replace(/["\\]/g, '\\$&');
                 const card = overridesUserList?.querySelector(
                     `.override-user-card[data-userid="${escaped}"]`
                 );
