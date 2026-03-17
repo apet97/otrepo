@@ -2219,26 +2219,35 @@ describe('State Module - Store Class', () => {
       const key = store.getReportCacheKey('2025-01-01', '2025-01-31');
       const entries = [{ id: 'entry1' }];
       const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+      const now = Date.now();
 
-      // At exactly 5 minutes + 1ms (expired)
-      sessionStorage.setItem('otplus_report_cache', JSON.stringify({
-        key,
-        timestamp: jest.now() - (CACHE_TTL_MS + 1),
-        entries,
-        schemaVersion: 1
-      }));
+      // Pin Date.now so elapsed time between setup and check doesn't cause flakes
+      const origDateNow = Date.now;
+      Date.now = () => now;
 
-      expect(await store.getCachedReport(key)).toBeNull();
+      try {
+        // At exactly 5 minutes + 1ms (expired)
+        sessionStorage.setItem('otplus_report_cache', JSON.stringify({
+          key,
+          timestamp: now - (CACHE_TTL_MS + 1),
+          entries,
+          schemaVersion: 1
+        }));
 
-      // At exactly 5 minutes - 1ms (still valid)
-      sessionStorage.setItem('otplus_report_cache', JSON.stringify({
-        key,
-        timestamp: jest.now() - (CACHE_TTL_MS - 1),
-        entries,
-        schemaVersion: 1
-      }));
+        expect(await store.getCachedReport(key)).toBeNull();
 
-      expect((await store.getCachedReport(key))?.entries).toEqual(entries);
+        // At exactly 5 minutes - 1ms (still valid)
+        sessionStorage.setItem('otplus_report_cache', JSON.stringify({
+          key,
+          timestamp: now - (CACHE_TTL_MS - 1),
+          entries,
+          schemaVersion: 1
+        }));
+
+        expect((await store.getCachedReport(key))?.entries).toEqual(entries);
+      } finally {
+        Date.now = origDateNow;
+      }
     });
 
     it('should NOT clear profile cache when overrides change', () => {
