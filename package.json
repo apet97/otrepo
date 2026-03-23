@@ -37,7 +37,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.11.1",
     "@babel/core": "^7.29.0",
-    "@babel/preset-env": "^7.29.0",
+    "@babel/preset-env": "^7.29.2",
     "@cyclonedx/cyclonedx-npm": "^4.2.1",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
@@ -48,7 +48,7 @@
     "babel-jest": "^30.2.0",
     "dependency-cruiser": "^17.3.8",
     "esbuild": "^0.27.3",
-    "eslint": "^10.0.3",
+    "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import-x": "^4.15.1",
     "eslint-plugin-security": "^3.0.1",
@@ -58,7 +58,7 @@
     "prettier": "^3.8.1",
     "ts-jest": "^29.4.6",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.56.1"
+    "typescript-eslint": "^8.57.1"
   },
   "keywords": [
     "clockify",
